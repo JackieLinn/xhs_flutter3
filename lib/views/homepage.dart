@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:xhs/components/tweetcard.dart';
+import 'package:xhs/views/searchpage.dart';
 import 'detailpage.dart';
 
 class Page1 extends StatefulWidget {
+  const Page1({super.key});
+
   @override
   State<Page1> createState() => _Page1State();
 }
@@ -53,7 +56,7 @@ class _Page1State extends State<Page1> with SingleTickerProviderStateMixin {
                   unselectedLabelColor: Colors.grey, // 未选中字体灰色
                   labelStyle: const TextStyle(fontSize: 16),
                   unselectedLabelStyle: const TextStyle(fontSize: 16),
-                  overlayColor: MaterialStateProperty.all(Colors.transparent),
+                  overlayColor: WidgetStateProperty.all(Colors.transparent),
                   tabs: const [
                     Tab(text: "关注"),
                     Tab(text: "发现"),
@@ -65,9 +68,9 @@ class _Page1State extends State<Page1> with SingleTickerProviderStateMixin {
               IconButton(
                 icon: const Icon(Icons.search),
                 onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Search tapped")),
-                  );
+                  Navigator.push(context, MaterialPageRoute(
+                    builder: (context) => const SearchPage(),
+                  ));
                 },
               ),
             ],
