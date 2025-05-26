@@ -68,7 +68,7 @@ class _MyHomePageState extends State<MyHomePage> {
             _buildBottomNavItem("首页", 0),
             _buildBottomNavItem("热门", 1),
             _buildPlusButton(),
-            _buildBottomNavItem("消息", 3),
+            _buildBottomNavItem("购物", 3),
             _buildBottomNavItem("我", 4),
           ],
         ),
