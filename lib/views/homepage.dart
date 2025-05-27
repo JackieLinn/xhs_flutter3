@@ -16,7 +16,6 @@ class _Page1State extends State<Page1> with SingleTickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    // 设置默认的选中Tab为第二个，即index: 1
     _tabController = TabController(length: 3, vsync: this, initialIndex: 1);
   }
 
@@ -29,31 +28,57 @@ class _Page1State extends State<Page1> with SingleTickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            const DrawerHeader(
+              decoration: BoxDecoration(
+                color: Colors.pinkAccent,
+              ),
+              child: Text('菜单', style: TextStyle(color: Colors.white, fontSize: 24)),
+            ),
+            ListTile(
+              leading: const Icon(Icons.person_add),
+              title: const Text('发现好友'),
+              onTap: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("发现好友点击")),
+                );
+                Navigator.pop(context); // 关闭Drawer
+              },
+            ),
+            // 可以继续添加更多菜单项...
+          ],
+        ),
+      ),
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(60),
         child: AppBar(
-          backgroundColor: Colors.white, // AppBar整体为白色
-          surfaceTintColor: Colors.transparent, // 关键！去掉Material3叠加色
-          elevation: 4, // AppBar阴影
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          elevation: 4,
           shadowColor: Colors.grey,
           titleSpacing: 0,
           title: Row(
             children: [
-              IconButton(
-                icon: const Icon(Icons.menu),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Menu tapped")),
-                  );
-                },
-              ),
+              // Builder( // 关键！Builder包裹IconButton以获取正确的context
+              //   builder: (context) {
+              //     return IconButton(
+              //       icon: const Icon(Icons.menu),
+              //       onPressed: () {
+              //         Scaffold.of(context).openDrawer();
+              //       },
+              //     );
+              //   },
+              // ),
               Expanded(
                 child: TabBar(
                   controller: _tabController,
-                  indicatorColor: Colors.red, // 红色指示器
+                  indicatorColor: Colors.red,
                   indicatorWeight: 2,
-                  labelColor: Colors.black, // 选中字体黑色
-                  unselectedLabelColor: Colors.grey, // 未选中字体灰色
+                  labelColor: Colors.black,
+                  unselectedLabelColor: Colors.grey,
                   labelStyle: const TextStyle(fontSize: 16),
                   unselectedLabelStyle: const TextStyle(fontSize: 16),
                   overlayColor: WidgetStateProperty.all(Colors.transparent),
@@ -62,7 +87,7 @@ class _Page1State extends State<Page1> with SingleTickerProviderStateMixin {
                     Tab(text: "发现"),
                     Tab(text: "昆明"),
                   ],
-                  dividerColor: Colors.transparent, // 去掉分隔线
+                  dividerColor: Colors.transparent,
                 ),
               ),
               IconButton(
@@ -86,7 +111,7 @@ class _Page1State extends State<Page1> with SingleTickerProviderStateMixin {
             crossAxisCount: 2,
             crossAxisSpacing: 8,
             mainAxisSpacing: 8,
-            childAspectRatio: 0.65, // 调整卡片为更修长的比例
+            childAspectRatio: 0.65,
             children: [
               TweetCard(
                 imageUrl: 'https://picsum.photos/400/200',
@@ -112,7 +137,6 @@ class _Page1State extends State<Page1> with SingleTickerProviderStateMixin {
                   ));
                 },
               ),
-              // 可以再加更多卡片
             ],
           ),
           const Center(child: Text("昆明内容", style: TextStyle(fontSize: 24))),
