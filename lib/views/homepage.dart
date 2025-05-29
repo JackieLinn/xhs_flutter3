@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:xhs/components/tweetcard.dart';
 import 'package:xhs/views/searchpage.dart';
+
 import 'detailpage.dart';
 
 class Page1 extends StatefulWidget {
@@ -33,19 +34,32 @@ class _Page1State extends State<Page1> with SingleTickerProviderStateMixin {
           padding: EdgeInsets.zero,
           children: [
             const DrawerHeader(
-              decoration: BoxDecoration(
-                color: Colors.pinkAccent,
+              decoration: BoxDecoration(color: Colors.pinkAccent),
+              child: Text(
+                '菜单',
+                style: TextStyle(color: Colors.white, fontSize: 24),
               ),
-              child: Text('菜单', style: TextStyle(color: Colors.white, fontSize: 24)),
             ),
             ListTile(
               leading: const Icon(Icons.person_add),
               title: const Text('发现好友'),
               onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("发现好友点击")),
-                );
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text("发现好友点击")));
                 Navigator.pop(context); // 关闭Drawer
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.logout),
+              title: const Text('退出登录'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/',
+                  (route) => false,
+                );
               },
             ),
             // 可以继续添加更多菜单项...
@@ -93,9 +107,10 @@ class _Page1State extends State<Page1> with SingleTickerProviderStateMixin {
               IconButton(
                 icon: const Icon(Icons.search),
                 onPressed: () {
-                  Navigator.push(context, MaterialPageRoute(
-                    builder: (context) => const SearchPage(),
-                  ));
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const SearchPage()),
+                  );
                 },
               ),
             ],
@@ -120,9 +135,12 @@ class _Page1State extends State<Page1> with SingleTickerProviderStateMixin {
                 username: '小明',
                 likes: 123,
                 onTap: () {
-                  Navigator.push(context, MaterialPageRoute(
-                    builder: (context) => const DetailPage(title: '这是一条推文标题'),
-                  ));
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const DetailPage(title: '这是一条推文标题'),
+                    ),
+                  );
                 },
               ),
               TweetCard(
@@ -132,9 +150,12 @@ class _Page1State extends State<Page1> with SingleTickerProviderStateMixin {
                 username: '小红',
                 likes: 88,
                 onTap: () {
-                  Navigator.push(context, MaterialPageRoute(
-                    builder: (context) => const DetailPage(title: '又一条推文'),
-                  ));
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const DetailPage(title: '又一条推文'),
+                    ),
+                  );
                 },
               ),
             ],
