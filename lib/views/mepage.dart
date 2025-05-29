@@ -137,24 +137,47 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
               ],
             ),
           ),
+          Stack(
+            children: [
+              // 渐变背景 + 圆角
+              ClipRRect(
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(24),
+                  topRight: Radius.circular(24),
+                ),
+                child: Container(
+                  height: 50, // 控制高度，适配视觉
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.deepPurple, Colors.indigo.shade900],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                ),
+              ),
 
-          // TabBar + TabBarView
-          Container(
-            color: Colors.white,
-            child: TabBar(
-              controller: _tabController,
-              indicatorColor: Colors.red,
-              labelColor: Colors.black,
-              unselectedLabelColor: Colors.grey,
-              labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-              unselectedLabelStyle: const TextStyle(fontSize: 14),
-              tabs: const [
-                Tab(text: '笔记'),
-                Tab(text: '收藏'),
-                Tab(text: '赞过'),
-              ],
-            ),
+              // TabBar
+              Container(
+                height: 50, // 同样的高度
+                color: Colors.white,
+                child: TabBar(
+                  controller: _tabController,
+                  indicatorColor: Colors.red,
+                  labelColor: Colors.black,
+                  unselectedLabelColor: Colors.grey,
+                  labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                  unselectedLabelStyle: const TextStyle(fontSize: 14),
+                  tabs: const [
+                    Tab(text: '笔记'),
+                    Tab(text: '收藏'),
+                    Tab(text: '赞过'),
+                  ],
+                ),
+              ),
+            ],
           ),
+
 
           Expanded(
             child: Container(
