@@ -148,6 +148,7 @@ class _LoginPageState extends State<LoginPage> {
                         setState(() => _rememberMe = v ?? false);
                       },
                       side: BorderSide(color: Colors.grey.shade600, width: 1),
+                      activeColor: Colors.red.shade700,
                     ),
                     Text(
                       '记住我',
@@ -167,27 +168,27 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     );
                   },
-                  child: const Text(
+                  child: Text(
                     '忘记密码？',
-                    style: TextStyle(color: Colors.blue, fontSize: 14),
+                    style: TextStyle(color: Colors.red.shade700, fontSize: 14),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 28),
 
-            // 立即登录（绿色，浅色默认，点击更深）
+            // 立即登录
             SizedBox(
               height: 38,
               child: ElevatedButton(
                 style: ButtonStyle(
-                  backgroundColor: MaterialStateProperty.resolveWith<Color>(
+                  backgroundColor: WidgetStateProperty.resolveWith<Color>(
                     (states) =>
-                        states.contains(MaterialState.pressed)
-                            ? Colors.green.shade200
-                            : Colors.green.shade100,
+                        states.contains(WidgetState.pressed)
+                            ? Colors.red.shade900
+                            : Colors.red.shade700,
                   ),
-                  shape: MaterialStateProperty.all(
+                  shape: WidgetStateProperty.all(
                     RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -198,36 +199,77 @@ class _LoginPageState extends State<LoginPage> {
                 },
                 child: const Text(
                   '立即登录',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ),
             const SizedBox(height: 12),
 
             // 分隔文字
-            Center(
-              child: Text(
-                '—————— 没有账号 ——————',
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: Divider(
+                    color: Colors.grey.shade600,
+                    thickness: 1,
+                    indent: 20,
+                    endIndent: 10,
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                  child: Text(
+                    '没有账号',
+                    style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                  ),
+                ),
+                Expanded(
+                  child: Divider(
+                    color: Colors.grey.shade600,
+                    thickness: 1,
+                    indent: 10,
+                    endIndent: 20,
+                  ),
+                ),
+              ],
             ),
+
             const SizedBox(height: 12),
 
-            // 注册账号（橙色，浅色默认，点击更深）
+            // 注册账号
             SizedBox(
               height: 38,
-              child: ElevatedButton(
+              child: OutlinedButton(
                 style: ButtonStyle(
-                  backgroundColor: MaterialStateProperty.resolveWith<Color>(
+                  backgroundColor: WidgetStateProperty.resolveWith<Color>(
                     (states) =>
-                        states.contains(MaterialState.pressed)
-                            ? Colors.orange.shade200
-                            : Colors.orange.shade100,
+                        states.contains(WidgetState.pressed)
+                            ? Colors.red.shade50
+                            : Colors.white,
                   ),
-                  shape: MaterialStateProperty.all(
+                  side: WidgetStateProperty.resolveWith<BorderSide>(
+                    (states) => BorderSide(
+                      color:
+                          states.contains(WidgetState.pressed)
+                              ? Colors.red.shade700
+                              : Colors.red,
+                      width: 1,
+                    ),
+                  ),
+                  shape: WidgetStateProperty.all(
                     RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
+                  ),
+                  foregroundColor: WidgetStateProperty.resolveWith<Color>(
+                    (states) =>
+                        states.contains(WidgetState.pressed)
+                            ? Colors.red.shade700
+                            : Colors.red,
                   ),
                 ),
                 onPressed: () {
