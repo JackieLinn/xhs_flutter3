@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart'; // ← 新增
 import 'package:xhs/components/tweetcard.dart';
 import 'package:xhs/views/searchpage.dart';
 
@@ -13,6 +14,7 @@ class Page1 extends StatefulWidget {
 
 class _Page1State extends State<Page1> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final _storage = const FlutterSecureStorage(); // ← 实例化
 
   @override
   void initState() {
@@ -47,19 +49,19 @@ class _Page1State extends State<Page1> with SingleTickerProviderStateMixin {
                 ScaffoldMessenger.of(
                   context,
                 ).showSnackBar(const SnackBar(content: Text("发现好友点击")));
-                Navigator.pop(context); // 关闭Drawer
+                Navigator.pop(context);
               },
             ),
             ListTile(
               leading: const Icon(Icons.logout),
               title: const Text('退出登录'),
-              onTap: () {
+              onTap: () async {
+                // 先关闭 drawer
                 Navigator.pop(context);
-                Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  '/',
-                  (route) => false,
-                );
+                // 删除本地存储的 token
+                await _storage.delete(key: 'access_token');
+                // 跳回登录页，并清空导航栈
+                Navigator.pushNamedAndRemoveUntil(context, '/', (r) => false);
               },
             ),
             // 可以继续添加更多菜单项...
@@ -76,16 +78,6 @@ class _Page1State extends State<Page1> with SingleTickerProviderStateMixin {
           titleSpacing: 0,
           title: Row(
             children: [
-              // Builder( // 关键！Builder包裹IconButton以获取正确的context
-              //   builder: (context) {
-              //     return IconButton(
-              //       icon: const Icon(Icons.menu),
-              //       onPressed: () {
-              //         Scaffold.of(context).openDrawer();
-              //       },
-              //     );
-              //   },
-              // ),
               Expanded(
                 child: TabBar(
                   controller: _tabController,
@@ -109,7 +101,7 @@ class _Page1State extends State<Page1> with SingleTickerProviderStateMixin {
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const SearchPage()),
+                    MaterialPageRoute(builder: (c) => const SearchPage()),
                   );
                 },
               ),
@@ -138,7 +130,7 @@ class _Page1State extends State<Page1> with SingleTickerProviderStateMixin {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const DetailPage(title: '这是一条推文标题'),
+                      builder: (c) => const DetailPage(title: '这是一条推文标题'),
                     ),
                   );
                 },
@@ -153,7 +145,7 @@ class _Page1State extends State<Page1> with SingleTickerProviderStateMixin {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const DetailPage(title: '又一条推文'),
+                      builder: (c) => const DetailPage(title: '又一条推文'),
                     ),
                   );
                 },

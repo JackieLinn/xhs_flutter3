@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import '../services/api_service.dart';
 import 'register.dart';
 import 'reset_password.dart';
 
@@ -13,12 +15,32 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final _storage = const FlutterSecureStorage();
+
   bool _rememberMe = false;
   bool _obscurePassword = true;
 
   @override
+  void initState() {
+    super.initState();
+    _loadSavedCredentials();
+  }
+
+  Future<void> _loadSavedCredentials() async {
+    // 尝试读取之前保存的用户名和密码
+    final savedUser = await _storage.read(key: 'saved_username');
+    final savedPass = await _storage.read(key: 'saved_password');
+    if (savedUser != null && savedPass != null) {
+      setState(() {
+        _usernameController.text = savedUser;
+        _passwordController.text = savedPass;
+        _rememberMe = true;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // 定义一个灰色小字体的hint样式
     var hintStyle = TextStyle(fontSize: 14, color: Colors.grey.shade600);
 
     return Scaffold(
@@ -33,15 +55,17 @@ class _LoginPageState extends State<LoginPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Logo
             Center(
               child: Image.asset(
-                'images/xhs_logo.png', // 根据实际路径调整图片路径
-                width: 150, // 设置logo的宽度，可以调整大小
-                height: 150, // 设置logo的高度，可以调整大小
+                'images/xhs_logo.png',
+                width: 150,
+                height: 150,
               ),
             ),
-            const SizedBox(height: 20), // 添加一些间距
-            // 用户名
+            const SizedBox(height: 20),
+
+            // 用户名输入框
             SizedBox(
               height: 35,
               child: TextField(
@@ -66,14 +90,14 @@ class _LoginPageState extends State<LoginPage> {
                     borderSide: BorderSide(
                       color: Colors.grey.shade500,
                       width: 2,
-                    ), // 设置焦点时的边框颜色和宽度
+                    ),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide: BorderSide(
                       color: Colors.grey.shade400,
                       width: 1,
-                    ), // 设置未选中的边框颜色
+                    ),
                   ),
                 ),
                 style: const TextStyle(fontSize: 16),
@@ -81,7 +105,7 @@ class _LoginPageState extends State<LoginPage> {
             ),
             const SizedBox(height: 14),
 
-            // 密码
+            // 密码输入框
             SizedBox(
               height: 35,
               child: TextField(
@@ -107,14 +131,14 @@ class _LoginPageState extends State<LoginPage> {
                     borderSide: BorderSide(
                       color: Colors.grey.shade500,
                       width: 2,
-                    ), // 设置焦点时的边框颜色和宽度
+                    ),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide: BorderSide(
                       color: Colors.grey.shade400,
                       width: 1,
-                    ), // 设置未选中的边框颜色
+                    ),
                   ),
                   suffixIcon: IconButton(
                     icon: Icon(
@@ -124,11 +148,10 @@ class _LoginPageState extends State<LoginPage> {
                       size: 20,
                       color: Colors.grey.shade700,
                     ),
-                    onPressed: () {
-                      setState(() {
-                        _obscurePassword = !_obscurePassword;
-                      });
-                    },
+                    onPressed:
+                        () => setState(
+                          () => _obscurePassword = !_obscurePassword,
+                        ),
                   ),
                 ),
                 style: const TextStyle(fontSize: 16),
@@ -144,9 +167,8 @@ class _LoginPageState extends State<LoginPage> {
                   children: [
                     Checkbox(
                       value: _rememberMe,
-                      onChanged: (v) {
-                        setState(() => _rememberMe = v ?? false);
-                      },
+                      onChanged:
+                          (v) => setState(() => _rememberMe = v ?? false),
                       side: BorderSide(color: Colors.grey.shade600, width: 1),
                       activeColor: Colors.red.shade700,
                     ),
@@ -160,14 +182,13 @@ class _LoginPageState extends State<LoginPage> {
                   ],
                 ),
                 TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (c) => const ResetPasswordPage(),
+                  onPressed:
+                      () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (c) => const ResetPasswordPage(),
+                        ),
                       ),
-                    );
-                  },
                   child: Text(
                     '忘记密码？',
                     style: TextStyle(color: Colors.red.shade700, fontSize: 14),
@@ -177,7 +198,7 @@ class _LoginPageState extends State<LoginPage> {
             ),
             const SizedBox(height: 28),
 
-            // 立即登录
+            // 登录按钮
             SizedBox(
               height: 38,
               child: ElevatedButton(
@@ -194,8 +215,56 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
                 ),
-                onPressed: () {
-                  Navigator.pushReplacementNamed(context, '/home');
+                onPressed: () async {
+                  final username = _usernameController.text.trim();
+                  final password = _passwordController.text;
+                  if (username.isEmpty) {
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(const SnackBar(content: Text('请填写用户名/邮箱')));
+                    return;
+                  }
+                  if (password.isEmpty) {
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(const SnackBar(content: Text('请填写密码')));
+                    return;
+                  }
+
+                  try {
+                    // 调用登录接口
+                    await ApiService.login(
+                      username: username,
+                      password: password,
+                      remember: _rememberMe,
+                    );
+
+                    // 根据 remember 存／删凭据
+                    if (_rememberMe) {
+                      await _storage.write(
+                        key: 'saved_username',
+                        value: username,
+                      );
+                      await _storage.write(
+                        key: 'saved_password',
+                        value: password,
+                      );
+                    } else {
+                      await _storage.delete(key: 'saved_username');
+                      await _storage.delete(key: 'saved_password');
+                    }
+
+                    // 读取并打印 token
+                    final authStr = await _storage.read(key: 'access_token');
+                    print('登录成功，token=$authStr');
+
+                    // 跳转首页
+                    Navigator.pushReplacementNamed(context, '/home');
+                  } catch (e) {
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text(e.toString())));
+                  }
                 },
                 child: const Text(
                   '立即登录',
@@ -220,11 +289,11 @@ class _LoginPageState extends State<LoginPage> {
                     endIndent: 10,
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 8.0),
                   child: Text(
                     '没有账号',
-                    style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                    style: TextStyle(fontSize: 14, color: Colors.grey),
                   ),
                 ),
                 Expanded(
@@ -237,7 +306,6 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ],
             ),
-
             const SizedBox(height: 12),
 
             // 注册账号
@@ -272,12 +340,11 @@ class _LoginPageState extends State<LoginPage> {
                             : Colors.red,
                   ),
                 ),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (c) => const RegisterPage()),
-                  );
-                },
+                onPressed:
+                    () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (c) => const RegisterPage()),
+                    ),
                 child: const Text(
                   '注册账号',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
