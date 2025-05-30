@@ -74,6 +74,30 @@ class ApiService {
     return _processRestBean(resp);
   }
 
+  /// 请求返回 RestBean<Void> 的 GET
+  static Future<void> getVoid(
+    String path, {
+    Map<String, String>? queryParameters,
+  }) async {
+    final uri = Uri.parse(
+      '$_baseUrl$path',
+    ).replace(queryParameters: queryParameters);
+    final headers =
+        path.startsWith('/auth/')
+            ? {'Content-Type': 'application/json'}
+            : await _getAuthHeader();
+    final resp = await http.get(uri, headers: headers);
+    // 只做状态码和 code 检查，不取 data
+    if (resp.statusCode != 200) {
+      throw Exception('网络错误：${resp.statusCode}');
+    }
+    final json = jsonDecode(resp.body) as Map<String, dynamic>;
+    if (json['code'] != 200) {
+      throw Exception('请求失败：${json['message']}');
+    }
+    // data 肯定是 null，直接返回 void
+  }
+
   /// POST 通用
   static Future<Map<String, dynamic>> postApi(
     String path, {
@@ -87,6 +111,29 @@ class ApiService {
     final body = data == null ? null : jsonEncode(data);
     final resp = await http.post(uri, headers: headers, body: body);
     return _processRestBean(resp);
+  }
+
+  /// 请求返回 RestBean<Void> 的 POST
+  static Future<void> postVoid(
+    String path, {
+    Map<String, dynamic>? data,
+  }) async {
+    final uri = Uri.parse('$_baseUrl$path');
+    final headers =
+        path.startsWith('/auth/')
+            ? {'Content-Type': 'application/json'}
+            : await _getAuthHeader();
+    final body = data == null ? null : jsonEncode(data);
+    final resp = await http.post(uri, headers: headers, body: body);
+
+    if (resp.statusCode != 200) {
+      throw Exception('网络错误：${resp.statusCode}');
+    }
+    final jsonBody = jsonDecode(resp.body) as Map<String, dynamic>;
+    if (jsonBody['code'] != 200) {
+      throw Exception('操作失败：${jsonBody['message']}');
+    }
+    // data 肯定是 null，直接返回
   }
 
   /// 组装带 token 的 header，并验证过期时间

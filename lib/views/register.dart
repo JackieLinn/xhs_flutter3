@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:xhs/services/api_service.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -10,12 +11,12 @@ class RegisterPage extends StatefulWidget {
 }
 
 class _RegisterPageState extends State<RegisterPage> {
-  final TextEditingController _phoneController = TextEditingController();
-  final TextEditingController _usernameController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _repeatController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _codeController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _usernameController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _repeatController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _codeController = TextEditingController();
 
   bool _obscurePassword = true;
   bool _obscureRepeat = true;
@@ -35,19 +36,86 @@ class _RegisterPageState extends State<RegisterPage> {
       _isSendingCode = true;
       _secondsRemaining = 60;
     });
-
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+    _timer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (_secondsRemaining > 1) {
-        setState(() {
-          _secondsRemaining--;
-        });
+        setState(() => _secondsRemaining--);
       } else {
-        timer.cancel();
-        setState(() {
-          _isSendingCode = false;
-        });
+        t.cancel();
+        setState(() => _isSendingCode = false);
       }
     });
+  }
+
+  Future<void> _requestCode() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('请填写电子邮件地址')));
+      return;
+    }
+    try {
+      await ApiService.getVoid(
+        '/auth/ask-code',
+        queryParameters: {'email': email, 'type': 'register'},
+      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('验证码已发送')));
+      _startCountdown();
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('请求验证码失败: $e')));
+    }
+  }
+
+  Future<void> _register() async {
+    final phone = _phoneController.text.trim();
+    final username = _usernameController.text.trim();
+    final password = _passwordController.text.trim();
+    final repeat = _repeatController.text.trim();
+    final email = _emailController.text.trim();
+    final code = _codeController.text.trim();
+
+    if ([
+      phone,
+      username,
+      password,
+      repeat,
+      email,
+      code,
+    ].any((s) => s.isEmpty)) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('请填写所有字段')));
+      return;
+    }
+    if (password != repeat) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('两次密码输入不一致')));
+      return;
+    }
+
+    try {
+      final payload = {
+        'phone': phone,
+        'username': username,
+        'password': password,
+        'email': email,
+        'code': code,
+      };
+      await ApiService.postVoid('/auth/register', data: payload);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('注册成功')));
+      Navigator.pop(context);
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('注册失败: $e')));
+    }
   }
 
   @override
@@ -78,66 +146,52 @@ class _RegisterPageState extends State<RegisterPage> {
             ),
             const SizedBox(height: 20),
 
-            // 电话号码
+            // 各种输入框
+            _buildField(_phoneController, '电话号码', Icons.phone, hintStyle),
+            const SizedBox(height: 14),
             _buildField(
-              controller: _phoneController,
-              hint: '电话号码',
-              icon: Icons.phone,
-              hintStyle: hintStyle,
+              _usernameController,
+              '用户名/邮箱',
+              Icons.person_outline,
+              hintStyle,
             ),
             const SizedBox(height: 14),
-
-            // 用户名/邮箱
             _buildField(
-              controller: _usernameController,
-              hint: '用户名/邮箱',
-              icon: Icons.person_outline,
-              hintStyle: hintStyle,
-            ),
-            const SizedBox(height: 14),
-
-            // 密码
-            _buildField(
-              controller: _passwordController,
-              hint: '密码',
-              icon: Icons.lock_outline,
-              hintStyle: hintStyle,
+              _passwordController,
+              '密码',
+              Icons.lock_outline,
+              hintStyle,
               obscure: _obscurePassword,
               toggle:
                   () => setState(() => _obscurePassword = !_obscurePassword),
             ),
             const SizedBox(height: 14),
-
-            // 重复密码
             _buildField(
-              controller: _repeatController,
-              hint: '重复密码',
-              icon: Icons.lock_outline,
-              hintStyle: hintStyle,
+              _repeatController,
+              '重复密码',
+              Icons.lock_outline,
+              hintStyle,
               obscure: _obscureRepeat,
               toggle: () => setState(() => _obscureRepeat = !_obscureRepeat),
             ),
             const SizedBox(height: 14),
-
-            // 电子邮件地址
             _buildField(
-              controller: _emailController,
-              hint: '电子邮件地址',
-              icon: Icons.email_outlined,
-              hintStyle: hintStyle,
+              _emailController,
+              '电子邮件地址',
+              Icons.email_outlined,
+              hintStyle,
             ),
             const SizedBox(height: 14),
 
-            // 验证码 + 获取按钮
+            // 验证码 + 按钮
             Row(
               children: [
                 Expanded(
                   child: _buildField(
-                    controller: _codeController,
-                    hint: '请输入验证码',
-                    icon: Icons.verified_user,
-                    hintStyle: hintStyle,
-                    enabled: true,
+                    _codeController,
+                    '请输入验证码',
+                    Icons.verified_user,
+                    hintStyle,
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -145,23 +199,21 @@ class _RegisterPageState extends State<RegisterPage> {
                   height: 35,
                   child: ElevatedButton(
                     style: ButtonStyle(
-                      mouseCursor: WidgetStateProperty.resolveWith<MouseCursor>(
-                        (states) {
-                          return states.contains(WidgetState.disabled)
-                              ? SystemMouseCursors.forbidden
-                              : SystemMouseCursors.click;
-                        },
-                      ),
                       backgroundColor: WidgetStateProperty.resolveWith<Color>((
                         states,
                       ) {
-                        // 倒计时中用浅红色，否则红色
-                        if (_isSendingCode) {
-                          return Colors.red.shade100;
+                        if (states.contains(WidgetState.disabled)) {
+                          return Colors.red.shade100; // 禁用时浅红
                         }
-                        return states.contains(WidgetState.pressed)
-                            ? Colors.red.shade900
-                            : Colors.red.shade700;
+                        if (states.contains(WidgetState.pressed)) {
+                          return Colors.red.shade900;
+                        }
+                        return Colors.red.shade700;
+                      }),
+                      foregroundColor: WidgetStateProperty.resolveWith<Color>((
+                        states,
+                      ) {
+                        return Colors.red.shade700; // 禁用时文字也用红色
                       }),
                       shape: WidgetStateProperty.all(
                         RoundedRectangleBorder(
@@ -172,23 +224,10 @@ class _RegisterPageState extends State<RegisterPage> {
                         const EdgeInsets.symmetric(horizontal: 12),
                       ),
                     ),
-                    onPressed:
-                        _isSendingCode
-                            ? null
-                            : () {
-                              // 请求验证码成功提示
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('请求验证码成功~')),
-                              );
-                              _startCountdown();
-                            },
+                    onPressed: _isSendingCode ? null : _requestCode,
                     child: Text(
                       _isSendingCode ? '请稍后 ${_secondsRemaining}s' : '获取验证码',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color:
-                            _isSendingCode ? Colors.red.shade700 : Colors.white,
-                      ),
+                      style: const TextStyle(fontSize: 14),
                     ),
                   ),
                 ),
@@ -196,7 +235,7 @@ class _RegisterPageState extends State<RegisterPage> {
             ),
             const SizedBox(height: 28),
 
-            // 立即注册（样式同“立即登录”）
+            // 立即注册
             SizedBox(
               height: 38,
               child: ElevatedButton(
@@ -204,9 +243,8 @@ class _RegisterPageState extends State<RegisterPage> {
                   backgroundColor: WidgetStateProperty.resolveWith<Color>((
                     states,
                   ) {
-                    if (states.contains(WidgetState.pressed)) {
+                    if (states.contains(WidgetState.pressed))
                       return Colors.red.shade900;
-                    }
                     return Colors.red.shade700;
                   }),
                   shape: WidgetStateProperty.all(
@@ -215,9 +253,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     ),
                   ),
                 ),
-                onPressed: () {
-                  Navigator.pop(context);
-                },
+                onPressed: _register,
                 child: const Text(
                   '立即注册',
                   style: TextStyle(
@@ -253,11 +289,11 @@ class _RegisterPageState extends State<RegisterPage> {
     );
   }
 
-  Widget _buildField({
-    required TextEditingController controller,
-    required String hint,
-    required IconData icon,
-    required TextStyle hintStyle,
+  Widget _buildField(
+    TextEditingController controller,
+    String hint,
+    IconData icon,
+    TextStyle hintStyle, {
     bool obscure = false,
     VoidCallback? toggle,
     bool enabled = true,
