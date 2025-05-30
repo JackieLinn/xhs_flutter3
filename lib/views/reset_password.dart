@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:xhs/services/api_service.dart';
 
 class ResetPasswordPage extends StatefulWidget {
   const ResetPasswordPage({super.key});
@@ -12,15 +13,14 @@ class ResetPasswordPage extends StatefulWidget {
 class _ResetPasswordPageState extends State<ResetPasswordPage> {
   int _stepIndex = 0;
 
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _codeController = TextEditingController();
-  final TextEditingController _newPwdController = TextEditingController();
-  final TextEditingController _confirmPwdController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _codeController = TextEditingController();
+  final _newPwdController = TextEditingController();
+  final _confirmPwdController = TextEditingController();
 
   bool _obscureNew = true;
   bool _obscureConfirm = true;
 
-  // 验证码冷却
   bool _isSendingCode = false;
   int _secondsRemaining = 0;
   Timer? _timer;
@@ -41,11 +41,92 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
         setState(() => _secondsRemaining--);
       } else {
         t.cancel();
-        setState(() {
-          _isSendingCode = false;
-        });
+        setState(() => _isSendingCode = false);
       }
     });
+  }
+
+  Future<void> _handleStep1() async {
+    final email = _emailController.text.trim();
+    final code = _codeController.text.trim();
+    // 验证邮箱
+    if (email.isEmpty) {
+      _showMsg('请填写电子邮件地址');
+      return;
+    }
+    final emailReg = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
+    if (!emailReg.hasMatch(email)) {
+      _showMsg('请输入合法的邮箱地址');
+      return;
+    }
+    // 验证码
+    if (code.length != 6 || !RegExp(r'^\d{6}$').hasMatch(code)) {
+      _showMsg('请输入6位数字验证码');
+      return;
+    }
+    try {
+      // 先请求确认接口
+      await ApiService.postVoid(
+        '/auth/reset-confirm',
+        data: {'email': email, 'code': code},
+      );
+      _showMsg('验证通过，进入下一步');
+      setState(() => _stepIndex = 1);
+    } catch (e) {
+      _showMsg('验证失败：$e');
+    }
+  }
+
+  Future<void> _requestCode() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      _showMsg('请填写电子邮件地址');
+      return;
+    }
+    final emailReg = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
+    if (!emailReg.hasMatch(email)) {
+      _showMsg('请输入合法的邮箱地址');
+      return;
+    }
+    try {
+      await ApiService.getVoid(
+        '/auth/ask-code',
+        queryParameters: {'email': email, 'type': 'reset'},
+      );
+      _showMsg('验证码已发送');
+      _startCountdown();
+    } catch (e) {
+      _showMsg('请求验证码失败：$e');
+    }
+  }
+
+  Future<void> _handleStep2() async {
+    final email = _emailController.text.trim();
+    final code = _codeController.text.trim();
+    final newPassword = _newPwdController.text;
+    final confirm = _confirmPwdController.text;
+    if (newPassword.isEmpty || confirm.isEmpty) {
+      _showMsg('请填写新密码和确认密码');
+      return;
+    }
+    if (newPassword != confirm) {
+      _showMsg('两次密码输入不一致');
+      return;
+    }
+    try {
+      await ApiService.postVoid(
+        '/auth/reset-password',
+        data: {'email': email, 'code': code, 'password': newPassword},
+      );
+      _showMsg('重置密码成功');
+      Navigator.pop(context);
+    } catch (e) {
+      _showMsg('重置失败：$e');
+    }
+  }
+
+  void _showMsg(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   @override
@@ -73,7 +154,6 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
         ),
         title: const Text('重置密码'),
         backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
         elevation: 1,
       ),
       body: SingleChildScrollView(
@@ -81,7 +161,6 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Logo
             Center(
               child: Image.asset(
                 'images/xhs_logo.png',
@@ -92,16 +171,13 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
             const SizedBox(height: 20),
 
             // 步骤条
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _buildStepItem(1, '验证电子邮件', _stepIndex == 0),
-                  _buildStepLine(),
-                  _buildStepItem(2, '重新设定密码', _stepIndex == 1),
-                ],
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildStepItem(1, '验证邮箱', _stepIndex == 0),
+                _buildStepLine(),
+                _buildStepItem(2, '重设密码', _stepIndex == 1),
+              ],
             ),
             const SizedBox(height: 20),
 
@@ -132,14 +208,21 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                         backgroundColor: WidgetStateProperty.resolveWith<Color>(
                           (states) {
                             if (_isSendingCode) return Colors.red.shade100;
-                            return states.contains(WidgetState.pressed)
-                                ? Colors.red.shade900
-                                : Colors.red.shade700;
+                            if (states.contains(WidgetState.pressed)) {
+                              return Colors.red.shade900;
+                            }
+                            return Colors.red.shade700;
                           },
+                        ),
+                        foregroundColor: WidgetStateProperty.resolveWith<Color>(
+                          (states) =>
+                              _isSendingCode
+                                  ? Colors.red.shade700
+                                  : Colors.white,
                         ),
                         mouseCursor:
                             WidgetStateProperty.resolveWith<MouseCursor>(
-                              (states) =>
+                              (_) =>
                                   _isSendingCode
                                       ? SystemMouseCursors.forbidden
                                       : SystemMouseCursors.click,
@@ -153,24 +236,10 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                           const EdgeInsets.symmetric(horizontal: 12),
                         ),
                       ),
-                      onPressed:
-                          _isSendingCode
-                              ? null
-                              : () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('验证码已发送~')),
-                                );
-                                _startCountdown();
-                              },
+                      onPressed: _isSendingCode ? null : _requestCode,
                       child: Text(
                         _isSendingCode ? '请稍后 ${_secondsRemaining}s' : '获取验证码',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color:
-                              _isSendingCode
-                                  ? Colors.red.shade700
-                                  : Colors.white,
-                        ),
+                        style: const TextStyle(fontSize: 14),
                       ),
                     ),
                   ),
@@ -181,16 +250,10 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                 height: 38,
                 child: ElevatedButton(
                   style: redBtnStyle(10),
-                  onPressed: () {
-                    setState(() => _stepIndex = 1);
-                  },
+                  onPressed: _handleStep1,
                   child: const Text(
                     '开始重置密码',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
+                    style: TextStyle(fontSize: 16, color: Colors.white),
                   ),
                 ),
               ),
@@ -218,19 +281,10 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                 height: 38,
                 child: ElevatedButton(
                   style: redBtnStyle(10),
-                  onPressed: () {
-                    ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(const SnackBar(content: Text('重置密码成功~')));
-                    Navigator.pop(context);
-                  },
+                  onPressed: _handleStep2,
                   child: const Text(
                     '立即重置密码',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
+                    style: TextStyle(fontSize: 16, color: Colors.white),
                   ),
                 ),
               ),
