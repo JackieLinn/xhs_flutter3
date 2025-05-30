@@ -54,6 +54,15 @@ class _RegisterPageState extends State<RegisterPage> {
       ).showSnackBar(const SnackBar(content: Text('请填写电子邮件地址')));
       return;
     }
+    // 验证邮箱格式
+    final emailReg = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
+    if (!emailReg.hasMatch(email)) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('请输入合法的邮箱地址')));
+      return;
+    }
+
     try {
       await ApiService.getVoid(
         '/auth/ask-code',
@@ -91,10 +100,27 @@ class _RegisterPageState extends State<RegisterPage> {
       ).showSnackBar(const SnackBar(content: Text('请填写所有字段')));
       return;
     }
+    // 再次校验邮箱
+    final emailReg = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
+    if (!emailReg.hasMatch(email)) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('请输入合法的邮箱地址')));
+      return;
+    }
+    // 校验密码一致
     if (password != repeat) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('两次密码输入不一致')));
+      return;
+    }
+    // 验证码必须为 6 位数字
+    final codeReg = RegExp(r'^\d{6}$');
+    if (!codeReg.hasMatch(code)) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('验证码格式不正确')));
       return;
     }
 
@@ -183,7 +209,7 @@ class _RegisterPageState extends State<RegisterPage> {
             ),
             const SizedBox(height: 14),
 
-            // 验证码 + 按钮
+            // 验证码 + 获取按钮
             Row(
               children: [
                 Expanded(
@@ -206,14 +232,17 @@ class _RegisterPageState extends State<RegisterPage> {
                           return Colors.red.shade100; // 禁用时浅红
                         }
                         if (states.contains(WidgetState.pressed)) {
-                          return Colors.red.shade900;
+                          return Colors.red.shade900; // 按下时深红
                         }
-                        return Colors.red.shade700;
+                        return Colors.red.shade700; // 默认深红
                       }),
                       foregroundColor: WidgetStateProperty.resolveWith<Color>((
                         states,
                       ) {
-                        return Colors.red.shade700; // 禁用时文字也用红色
+                        if (states.contains(WidgetState.disabled)) {
+                          return Colors.red.shade700; // 禁用时文字红
+                        }
+                        return Colors.white; // 默认文字白
                       }),
                       shape: WidgetStateProperty.all(
                         RoundedRectangleBorder(
@@ -226,7 +255,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     ),
                     onPressed: _isSendingCode ? null : _requestCode,
                     child: Text(
-                      _isSendingCode ? '请稍后 ${_secondsRemaining}s' : '获取验证码',
+                      _isSendingCode ? '请稍后 $_secondsRemaining s' : '获取验证码',
                       style: const TextStyle(fontSize: 14),
                     ),
                   ),
@@ -243,8 +272,9 @@ class _RegisterPageState extends State<RegisterPage> {
                   backgroundColor: WidgetStateProperty.resolveWith<Color>((
                     states,
                   ) {
-                    if (states.contains(WidgetState.pressed))
+                    if (states.contains(WidgetState.pressed)) {
                       return Colors.red.shade900;
+                    }
                     return Colors.red.shade700;
                   }),
                   shape: WidgetStateProperty.all(
