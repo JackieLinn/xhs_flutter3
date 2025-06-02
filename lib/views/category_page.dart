@@ -5,7 +5,7 @@ import '../models/product_classification.dart';
 import '../models/product_vo.dart';
 import '../services/api_service.dart';
 import 'cart_page.dart';
-import 'product_detail_page.dart'; // 新增导入
+import 'product_detail_page.dart';
 
 class CategoryPage extends StatefulWidget {
   const CategoryPage({super.key});
