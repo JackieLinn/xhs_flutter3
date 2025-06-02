@@ -22,21 +22,17 @@ class ApiService {
     );
     final data = _processRestBean(resp);
 
-    // 处理后端返回的 expire，可能是数字(毫秒)也可能是 ISO 字符串
     final rawExpire = data['expire'];
     late String expireIso;
     if (rawExpire is int) {
-      // 数字 (millis since epoch)
       expireIso =
           DateTime.fromMillisecondsSinceEpoch(rawExpire).toIso8601String();
     } else if (rawExpire is String) {
-      // 字符串，假设是 ISO 8601 或者 fastjson2 默认格式
       expireIso = DateTime.parse(rawExpire).toIso8601String();
     } else {
       throw Exception('无法解析的过期时间格式：$rawExpire');
     }
 
-    // 构造要存储的对象
     final authObj = jsonEncode({
       'token': data['token'],
       'expire': expireIso,
@@ -45,7 +41,6 @@ class ApiService {
       'remember': remember,
     });
 
-    // 写入 Secure Storage
     await _storage.write(key: _authKey, value: authObj);
   }
 
@@ -59,7 +54,8 @@ class ApiService {
   }
 
   /// GET 通用 (自动给 /api/** 加 token/Content-Type)
-  static Future<Map<String, dynamic>> getApi(
+  /// 现在返回类型改为 Future<dynamic>，直接返回 RestBean.data（可能是 Map 或 List）
+  static Future<dynamic> getApi(
     String path, {
     Map<String, String>? queryParameters,
   }) async {
@@ -74,7 +70,7 @@ class ApiService {
     return _processRestBean(resp);
   }
 
-  /// 请求返回 RestBean<Void> 的 GET
+  /// GET（无返回 data，仅检查 code == 200）
   static Future<void> getVoid(
     String path, {
     Map<String, String>? queryParameters,
@@ -87,19 +83,18 @@ class ApiService {
             ? {'Content-Type': 'application/json'}
             : await _getAuthHeader();
     final resp = await http.get(uri, headers: headers);
-    // 只做状态码和 code 检查，不取 data
     if (resp.statusCode != 200) {
       throw Exception('网络错误：${resp.statusCode}');
     }
-    final json = jsonDecode(resp.body) as Map<String, dynamic>;
-    if (json['code'] != 200) {
-      throw Exception('请求失败：${json['message']}');
+    final jsonMap = jsonDecode(resp.body) as Map<String, dynamic>;
+    if (jsonMap['code'] != 200) {
+      throw Exception('请求失败：${jsonMap['message']}');
     }
-    // data 肯定是 null，直接返回 void
+    // data 肯定是 null，直接返回
   }
 
-  /// POST 通用
-  static Future<Map<String, dynamic>> postApi(
+  /// POST 通用 (返回 RestBean.data)
+  static Future<dynamic> postApi(
     String path, {
     Map<String, dynamic>? data,
   }) async {
@@ -113,7 +108,7 @@ class ApiService {
     return _processRestBean(resp);
   }
 
-  /// 请求返回 RestBean<Void> 的 POST
+  /// POST（无返回 data，仅检查 code == 200）
   static Future<void> postVoid(
     String path, {
     Map<String, dynamic>? data,
@@ -154,14 +149,16 @@ class ApiService {
   }
 
   /// 统一解析后端 RestBean<T>
-  static Map<String, dynamic> _processRestBean(http.Response resp) {
+  /// 现在返回值不做强制 Map<String,dynamic> 转换，而是直接把 data 原样返回
+  static dynamic _processRestBean(http.Response resp) {
     if (resp.statusCode != 200) {
       throw Exception('网络错误：${resp.statusCode}');
     }
-    final json = jsonDecode(resp.body) as Map<String, dynamic>;
-    if (json['code'] != 200) {
-      throw Exception('请求失败：${json['message']}');
+    final jsonMap = jsonDecode(resp.body) as Map<String, dynamic>;
+    if (jsonMap['code'] != 200) {
+      throw Exception('请求失败：${jsonMap['message']}');
     }
-    return json['data'] as Map<String, dynamic>;
+    // 直接返回 data 字段（可能是 Map<String, dynamic>、也可能是 List<dynamic>、或 null）
+    return jsonMap['data'];
   }
 }
