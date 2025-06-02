@@ -6,6 +6,7 @@ class ProductCard extends StatelessWidget {
   final String activity; // 活动文案
   final double price; // 用 double 存储价格
   final int payers; // 已购人数
+  final int nameMaxLines; // 名称最多显示行数
   final VoidCallback? onTap;
 
   const ProductCard({
@@ -16,6 +17,7 @@ class ProductCard extends StatelessWidget {
     required this.price,
     required this.payers,
     this.onTap,
+    this.nameMaxLines = 2, // 默认两行
   });
 
   @override
@@ -49,10 +51,10 @@ class ProductCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 商品名
+                    // 商品名：使用 nameMaxLines 控制行数
                     Text(
                       name,
-                      maxLines: 2,
+                      maxLines: nameMaxLines,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 14,
