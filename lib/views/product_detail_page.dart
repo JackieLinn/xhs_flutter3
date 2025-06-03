@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../components/product_card.dart';
+import '../models/cart_list_one_ro.dart';
 import '../models/merchant_vo.dart';
 import '../models/option_vo.dart';
 import '../models/product_selection_vo.dart';
@@ -46,6 +49,11 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   // 用于标记“图文详情”和“推荐商品”分隔条的位置
   final GlobalKey _detailDividerKey = GlobalKey();
   final GlobalKey _recommendDividerKey = GlobalKey();
+
+  // ========== 以下是为了在 _showSelectionSheet 内跨作用域跟踪用户选择后数据 ==========
+  int _lastQty = 1;
+  double _lastUnitPrice = 0.0;
+  List<int> _lastSelectedOptionIds = [];
 
   @override
   void initState() {
@@ -101,8 +109,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
       '/api/variant/get-product-selection',
       queryParameters: {'pid': pid.toString()},
     );
-    // 假设后端直接返回 { data: {...} }，如果有包装字段，需要取到内部对象
-    // 这里简化为 rawData 就是 ProductSelectionVO 对应的 JSON
+    // 假设后端直接返回 { data: {...} }，这里简化为 rawData 就是 ProductSelectionVO 对应的 JSON
     return ProductSelectionVO.fromJson(rawData as Map<String, dynamic>);
   }
 
@@ -340,7 +347,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                         }
                         final selection = snap.data!;
 
-                        // 在 FutureBuilder 范围内，先初始化所有分类的“选中项”
+                        // 初始化：所有分类的选中项
                         final Map<String, OptionVO> selectedOptions = {};
                         for (var categoryMap in selection.categories) {
                           categoryMap.forEach((categoryName, optionList) {
@@ -349,9 +356,49 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                         }
 
                         int qty = 1; // 默认数量
+                        double unitPrice = selection.price; // 单价，后续点击分类时动态更新
+
+                        // 同时初始化外部跟踪变量
+                        _lastQty = qty;
+                        _lastUnitPrice = unitPrice;
+                        _lastSelectedOptionIds =
+                            selectedOptions.values.map((o) => o.id).toList();
 
                         return StatefulBuilder(
                           builder: (context, setState) {
+                            // Helper: 组合所有选中的 optionId 列表
+                            List<int> getSelectedOptionIds() {
+                              return selectedOptions.values
+                                  .map((opt) => opt.id)
+                                  .toList();
+                            }
+
+                            // Helper: 当某个分类选项被点击时，调用后端 calculate-price 接口
+                            Future<void> _refreshUnitPrice() async {
+                              try {
+                                final List<int> selectedIds =
+                                    getSelectedOptionIds();
+                                final String joinedIds = selectedIds.join(',');
+
+                                final raw = await ApiService.getApi(
+                                  '/api/variant/calculate-price',
+                                  queryParameters: {
+                                    'pid': widget.product.id.toString(),
+                                    'optionIds': joinedIds,
+                                  },
+                                );
+                                final double newPrice = (raw as num).toDouble();
+                                setState(() {
+                                  unitPrice = newPrice;
+
+                                  // 同步更新外部跟踪价格
+                                  _lastUnitPrice = newPrice;
+                                });
+                              } catch (e) {
+                                // 出错时保留原单价
+                              }
+                            }
+
                             return SingleChildScrollView(
                               controller: scrollController,
                               padding: const EdgeInsets.symmetric(
@@ -361,9 +408,9 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  // 价格：乘以数量后再展示
+                                  // 顶部价格：用最新的单价乘数量
                                   Text(
-                                    '¥ ${(selection.price * qty).toStringAsFixed(2)}',
+                                    '¥ ${(unitPrice * qty).toStringAsFixed(2)}',
                                     style: const TextStyle(
                                       fontSize: 20,
                                       color: Colors.red,
@@ -372,10 +419,9 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                                   ),
                                   const SizedBox(height: 16),
 
-                                  // 「遍历所有分类」，每个 categoryMap 里可能有多个键
+                                  // 遍历所有分类
                                   for (var categoryMap
                                       in selection.categories) ...[
-                                    // 对每个 categoryMap，进一步遍历它的 entries
                                     for (var entry in categoryMap.entries) ...[
                                       // 分类名称
                                       Text(
@@ -387,7 +433,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                                       ),
                                       const SizedBox(height: 8),
 
-                                      // 渲染该分类下的所有选项
+                                      // 渲染该分类下所有选项
                                       Wrap(
                                         spacing: 8,
                                         runSpacing: 8,
@@ -398,11 +444,19 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                                                           ?.id ==
                                                       opt.id);
                                               return GestureDetector(
-                                                onTap: () {
-                                                  setState(() {
-                                                    selectedOptions[entry.key] =
-                                                        opt;
-                                                  });
+                                                onTap: () async {
+                                                  if (!isSelected) {
+                                                    setState(() {
+                                                      selectedOptions[entry
+                                                              .key] =
+                                                          opt;
+                                                    });
+                                                    await _refreshUnitPrice();
+
+                                                    // 每次选中改变，都更新外部跟踪选项列表
+                                                    _lastSelectedOptionIds =
+                                                        getSelectedOptionIds();
+                                                  }
                                                 },
                                                 child: Container(
                                                   padding:
@@ -455,12 +509,13 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                                   const SizedBox(height: 8),
                                   Row(
                                     children: [
-                                      // 减号
+                                      // 减号按钮
                                       GestureDetector(
                                         onTap: () {
                                           if (qty > 1) {
                                             setState(() {
                                               qty--;
+                                              _lastQty = qty; // 更新外部跟踪数量
                                             });
                                           }
                                         },
@@ -492,11 +547,12 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                                         ),
                                       ),
                                       const SizedBox(width: 8),
-                                      // 加号
+                                      // 加号按钮
                                       GestureDetector(
                                         onTap: () {
                                           setState(() {
                                             qty++;
+                                            _lastQty = qty; // 更新外部跟踪数量
                                           });
                                         },
                                         child: Container(
@@ -529,7 +585,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                     ),
                   ),
 
-                  // 底部“确定”按钮（固定区域）
+                  // 底部“确定”按钮（固定区域），需要传递 CartListOneRO 给 SingleCartPage
                   Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 20.0,
@@ -543,12 +599,37 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                         ),
                         minimumSize: const Size(double.infinity, 48),
                       ),
-                      onPressed: () {
+                      onPressed: () async {
+                        // *************** 在这里取出 uid ****************
+                        const _storage = FlutterSecureStorage();
+                        final rawAuth = await _storage.read(
+                          key: 'access_token',
+                        );
+                        if (rawAuth == null) {
+                          // 如果未登录，可自行决定提示或跳到登录页
+                          return;
+                        }
+                        final authObj =
+                            jsonDecode(rawAuth) as Map<String, dynamic>;
+                        final int uid = int.parse(authObj['id'] as String);
+
+                        // pid = 当前商品ID
+                        final int pid = widget.product.id;
+
+                        // 组装 CartListOneRO
+                        final cartRO = CartListOneRO(
+                          uid: uid,
+                          pid: pid,
+                          price: _lastUnitPrice, // 单价（不乘数量）
+                          quantity: _lastQty,
+                          aoids: _lastSelectedOptionIds,
+                        );
+
                         Navigator.of(context).pop(); // 关闭底部面板
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (c) => const SingleCartPage(),
+                            builder: (c) => SingleCartPage(cartItem: cartRO),
                           ),
                         );
                       },
@@ -1267,7 +1348,6 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(width: 16, height: 2, color: Colors.black),
-                    const SizedBox(height: 4),
                     const Icon(
                       Icons.arrow_upward,
                       color: Colors.black,

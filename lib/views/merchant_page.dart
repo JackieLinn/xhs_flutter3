@@ -1,5 +1,3 @@
-// File: lib/views/merchant_page.dart
-
 import 'package:flutter/material.dart';
 
 class MerchantPage extends StatelessWidget {

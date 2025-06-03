@@ -1,17 +1,28 @@
 import 'package:flutter/material.dart';
+import '../models/cart_list_one_ro.dart';
 
 class SingleCartPage extends StatelessWidget {
-  const SingleCartPage({super.key});
+  final CartListOneRO cartItem;
+
+  const SingleCartPage({super.key, required this.cartItem});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('已加入购物车'), backgroundColor: Colors.red),
-      body: const Center(
+      appBar: AppBar(
+        title: const Text('已加入购物车'),
+        backgroundColor: Colors.red,
+      ),
+      body: Center(
         child: Text(
-          '这是单个购物车页面\n（这里只用文字占位，可根据需求再丰富）',
+          '已接收信息：\n'
+              'UID = ${cartItem.uid}\n'
+              'PID = ${cartItem.pid}\n'
+              '单价 = ¥${cartItem.price.toStringAsFixed(2)}\n'
+              '数量 = ${cartItem.quantity}\n'
+              '属性IDs = ${cartItem.aoids}',
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 18),
+          style: const TextStyle(fontSize: 18),
         ),
       ),
     );
