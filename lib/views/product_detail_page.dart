@@ -3,10 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../components/product_card.dart';
+import '../models/merchant_vo.dart';
+import '../models/option_vo.dart';
+import '../models/product_selection_vo.dart';
 import '../models/product_vo.dart';
 import '../services/api_service.dart';
 import './cart_page.dart';
 import './merchant_page.dart';
+import './single_cart_page.dart';
 
 class ProductDetailPage extends StatefulWidget {
   final ProductVO product;
@@ -24,6 +28,10 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
 
   // 直接在声明时初始化 ScrollController
   final ScrollController _scrollController = ScrollController();
+
+  // 用于保存异步获取到的商家信息
+  Future<MerchantVO>? _futureMerchant;
+  MerchantVO? _merchant;
 
   Timer? _autoPlayTimer;
   int _currentPage = 0;
@@ -60,6 +68,14 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
 
     // 在 initState 中给 _futureRecommends 赋值
     _futureRecommends = _fetchRecommendProducts();
+
+    // **新增：在 initState 中触发商家数据的获取**
+    _futureMerchant = _fetchMerchantByPid(widget.product.id);
+    _futureMerchant!.then((m) {
+      setState(() {
+        _merchant = m;
+      });
+    });
   }
 
   @override
@@ -70,17 +86,34 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     super.dispose();
   }
 
+  /// 异步获取商家信息，接口：/api/merchant/get-merchant-by-pid?pid=xxx
+  Future<MerchantVO> _fetchMerchantByPid(int pid) async {
+    final rawData = await ApiService.getApi(
+      '/api/merchant/get-merchant-by-pid',
+      queryParameters: {'pid': pid.toString()},
+    );
+    return MerchantVO.fromJson(rawData as Map<String, dynamic>);
+  }
+
+  /// 异步获取商品选择信息，接口：/api/variant/get-product-selection?pid=xxx
+  Future<ProductSelectionVO> _fetchProductSelection(int pid) async {
+    final rawData = await ApiService.getApi(
+      '/api/variant/get-product-selection',
+      queryParameters: {'pid': pid.toString()},
+    );
+    // 假设后端直接返回 { data: {...} }，如果有包装字段，需要取到内部对象
+    // 这里简化为 rawData 就是 ProductSelectionVO 对应的 JSON
+    return ProductSelectionVO.fromJson(rawData as Map<String, dynamic>);
+  }
+
   /// 滚动监听：计算“图文详情”和“推荐商品”分隔条相对于屏幕的位置，
   /// 来决定当前应该高亮哪个子导航，以及是否显示“回到顶部”按钮。
   void _onScroll() {
-    // 搜索栏高度 + 标签栏高度
     const double searchBarHeight = 56.0;
     const double tabBarHeight = 48.0;
-    // 折叠后 AppBar 固定高度 = 状态栏高度 + 搜索栏 + 标签栏
     final double pinnedBarHeight =
         MediaQuery.of(context).padding.top + searchBarHeight + tabBarHeight;
 
-    // 帮助函数：获取某个 GlobalKey 所在 Widget 在屏幕上的 y 坐标
     double _widgetGlobalY(GlobalKey key) {
       final renderObject = key.currentContext?.findRenderObject();
       if (renderObject is RenderBox) {
@@ -89,11 +122,9 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
       return double.infinity;
     }
 
-    // 分隔条在屏幕上的 y 坐标
     final detailY = _widgetGlobalY(_detailDividerKey);
     final recommendY = _widgetGlobalY(_recommendDividerKey);
 
-    // 根据分隔条是否滑到顶部，决定当前子导航索引
     int newIndex;
     if (recommendY <= pinnedBarHeight) {
       newIndex = 2;
@@ -103,7 +134,6 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
       newIndex = 0;
     }
 
-    // 当“图文详情”到顶部之后才显示“回到顶部”按钮
     final bool shouldShowBack = detailY <= pinnedBarHeight;
 
     if (newIndex != _tabIndex || shouldShowBack != _showBackToTop) {
@@ -126,7 +156,6 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
       final detailBox = _detailDividerKey.currentContext?.findRenderObject();
       if (detailBox is RenderBox) {
         final detailOffset = detailBox.localToGlobal(Offset.zero).dy;
-        // 减去顶部折叠后留存的高度：状态栏 + 搜索行 + Tab 行
         targetOffset =
             _scrollController.offset +
             (detailOffset -
@@ -148,7 +177,6 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
       }
     }
 
-    // clamp 避免超出滚动范围
     final clamped = targetOffset.clamp(
       0.0,
       _scrollController.position.maxScrollExtent,
@@ -211,6 +239,334 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
         .toList();
   }
 
+  /// 显示底部选择面板——加入购物车 / 立即购买 都调用它
+  void _showSelectionSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.7,
+          minChildSize: 0.4,
+          maxChildSize: 0.9,
+          builder: (context, scrollController) {
+            return Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(16),
+                ),
+              ),
+              child: Column(
+                children: [
+                  // 顶部“拖拽小拉手”
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+
+                  // 右上角“X”关闭按钮
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: IconButton(
+                      icon: const Icon(Icons.close, color: Colors.grey),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ),
+
+                  // 头部商品信息：缩略图 + 名称 + 退货提示
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: Row(
+                      children: [
+                        Image.network(
+                          widget.product.image,
+                          width: 60,
+                          height: 60,
+                          fit: BoxFit.cover,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                widget.product.name,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              const Text(
+                                '7天无理由退货，退货包运费',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+                  const Divider(height: 1),
+
+                  // 异步加载：价格 + 所有分类 + 数量选择
+                  Expanded(
+                    child: FutureBuilder<ProductSelectionVO>(
+                      future: _fetchProductSelection(widget.product.id),
+                      builder: (context, snap) {
+                        if (snap.connectionState != ConnectionState.done) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+                        if (snap.hasError || snap.data == null) {
+                          return const Center(child: Text('加载失败'));
+                        }
+                        final selection = snap.data!;
+
+                        // 在 FutureBuilder 范围内，先初始化所有分类的“选中项”
+                        final Map<String, OptionVO> selectedOptions = {};
+                        for (var categoryMap in selection.categories) {
+                          categoryMap.forEach((categoryName, optionList) {
+                            selectedOptions[categoryName] = optionList.first;
+                          });
+                        }
+
+                        int qty = 1; // 默认数量
+
+                        return StatefulBuilder(
+                          builder: (context, setState) {
+                            return SingleChildScrollView(
+                              controller: scrollController,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16.0,
+                                vertical: 8.0,
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // 价格：乘以数量后再展示
+                                  Text(
+                                    '¥ ${(selection.price * qty).toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                      fontSize: 20,
+                                      color: Colors.red,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+
+                                  // 「遍历所有分类」，每个 categoryMap 里可能有多个键
+                                  for (var categoryMap
+                                      in selection.categories) ...[
+                                    // 对每个 categoryMap，进一步遍历它的 entries
+                                    for (var entry in categoryMap.entries) ...[
+                                      // 分类名称
+                                      Text(
+                                        entry.key,
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+
+                                      // 渲染该分类下的所有选项
+                                      Wrap(
+                                        spacing: 8,
+                                        runSpacing: 8,
+                                        children:
+                                            entry.value.map((opt) {
+                                              final bool isSelected =
+                                                  (selectedOptions[entry.key]
+                                                          ?.id ==
+                                                      opt.id);
+                                              return GestureDetector(
+                                                onTap: () {
+                                                  setState(() {
+                                                    selectedOptions[entry.key] =
+                                                        opt;
+                                                  });
+                                                },
+                                                child: Container(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 12,
+                                                        vertical: 6,
+                                                      ),
+                                                  decoration: BoxDecoration(
+                                                    color:
+                                                        isSelected
+                                                            ? Colors.red
+                                                            : Colors.white,
+                                                    border: Border.all(
+                                                      color:
+                                                          isSelected
+                                                              ? Colors.red
+                                                              : Colors.grey,
+                                                    ),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          4,
+                                                        ),
+                                                  ),
+                                                  child: Text(
+                                                    opt.content,
+                                                    style: TextStyle(
+                                                      fontSize: 14,
+                                                      color:
+                                                          isSelected
+                                                              ? Colors.white
+                                                              : Colors.black,
+                                                    ),
+                                                  ),
+                                                ),
+                                              );
+                                            }).toList(),
+                                      ),
+                                      const SizedBox(height: 16),
+                                    ],
+                                  ],
+
+                                  // 数量选择器
+                                  Text(
+                                    '数量',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      // 减号
+                                      GestureDetector(
+                                        onTap: () {
+                                          if (qty > 1) {
+                                            setState(() {
+                                              qty--;
+                                            });
+                                          }
+                                        },
+                                        child: Container(
+                                          width: 32,
+                                          height: 32,
+                                          alignment: Alignment.center,
+                                          decoration: BoxDecoration(
+                                            border: Border.all(
+                                              color: Colors.grey,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
+                                          ),
+                                          child: const Icon(
+                                            Icons.remove,
+                                            size: 16,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        width: 40,
+                                        alignment: Alignment.center,
+                                        child: Text(
+                                          '$qty',
+                                          style: const TextStyle(fontSize: 16),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      // 加号
+                                      GestureDetector(
+                                        onTap: () {
+                                          setState(() {
+                                            qty++;
+                                          });
+                                        },
+                                        child: Container(
+                                          width: 32,
+                                          height: 32,
+                                          alignment: Alignment.center,
+                                          decoration: BoxDecoration(
+                                            border: Border.all(
+                                              color: Colors.grey,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
+                                          ),
+                                          child: const Icon(
+                                            Icons.add,
+                                            size: 16,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 16),
+                                ],
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+
+                  // 底部“确定”按钮（固定区域）
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20.0,
+                      vertical: 16.0,
+                    ),
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(32),
+                        ),
+                        minimumSize: const Size(double.infinity, 48),
+                      ),
+                      onPressed: () {
+                        Navigator.of(context).pop(); // 关闭底部面板
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (c) => const SingleCartPage(),
+                          ),
+                        );
+                      },
+                      child: const Text(
+                        '确定',
+                        style: TextStyle(fontSize: 16, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     const double searchBarHeight = 56.0;
@@ -236,7 +592,6 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
               final product = snapshot.data![0] as ProductVO;
               final detailImages = snapshot.data![1] as List<String>;
 
-              // 轮播图取主图 + 最多两张详情图
               final carouselImages = [product.image, ...detailImages.take(2)];
 
               return CustomScrollView(
@@ -353,18 +708,14 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                                                     Icons.star_border,
                                                     color: Colors.black,
                                                   ),
-                                                  onPressed: () {
-                                                    // TODO: 收藏逻辑
-                                                  },
+                                                  onPressed: () {},
                                                 ),
                                                 IconButton(
                                                   icon: const Icon(
                                                     Icons.share,
                                                     color: Colors.black,
                                                   ),
-                                                  onPressed: () {
-                                                    // TODO: 转发逻辑
-                                                  },
+                                                  onPressed: () {},
                                                 ),
                                               ],
                                             ),
@@ -607,149 +958,171 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 24),
                             ],
                           ),
                         ),
 
                         // 2. 商家信息模块（上下灰色分隔 + 相同左右 padding）
                         Container(height: 8, color: Colors.grey.shade300),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16.0,
-                            vertical: 12.0,
-                          ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              // 左侧：圆形头像 + 灰色线框（稍大）
-                              Container(
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: Colors.grey.shade300,
-                                    width: 1,
-                                  ),
+                        FutureBuilder<MerchantVO>(
+                          future: _futureMerchant,
+                          builder: (context, snap) {
+                            if (snap.connectionState != ConnectionState.done) {
+                              return const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 12.0),
+                                child: Center(
+                                  child: CircularProgressIndicator(),
                                 ),
-                                child: const CircleAvatar(
-                                  radius: 28,
-                                  backgroundImage: NetworkImage(
-                                    'https://tcwebchat.sporttery.cn/res/image.html?id=upload/c1302f5f80e7bf80cb7fa6684d79797b&6.png',
-                                  ),
-                                ),
+                              );
+                            }
+                            if (snap.hasError || snap.data == null) {
+                              return const SizedBox();
+                            }
+                            final merchant = snap.data!;
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16.0,
+                                vertical: 12.0,
                               ),
-                              const SizedBox(width: 12),
-                              // 中间：三行文字 + “旗舰店 / 4.61分”标签
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    // 第一行：商家名称（大号加粗）
-                                    const Text(
-                                      '商家111',
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: Colors.grey.shade300,
+                                        width: 1,
                                       ),
                                     ),
-                                    const SizedBox(height: 4),
-                                    // 第二行：粉丝xxx 已售xxx（小号深灰）
-                                    Text(
-                                      '粉丝 1234   已售 5678',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: Colors.grey.shade700,
+                                    child: CircleAvatar(
+                                      radius: 28,
+                                      backgroundImage: NetworkImage(
+                                        merchant.image,
                                       ),
                                     ),
-                                    const SizedBox(height: 6),
-                                    // 第三行：去掉最外层 border，将“旗舰店”设为黑底白字，“4.61分”设为白底黑字+黑色边框
-                                    Row(
-                                      mainAxisSize: MainAxisSize.min,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
-                                        // 左半部分：黑底白字，不带任何边框
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 2,
-                                          ),
-                                          decoration: const BoxDecoration(
-                                            color: Colors.black,
-                                            borderRadius: BorderRadius.only(
-                                              topLeft: Radius.circular(4),
-                                              bottomLeft: Radius.circular(4),
-                                            ),
-                                          ),
-                                          child: const Text(
-                                            '旗舰店',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.white,
-                                            ),
+                                        Text(
+                                          merchant.name,
+                                          style: const TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
                                           ),
                                         ),
-                                        // 右半部分：白底黑字，带圆角和黑色边框
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 2,
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          '粉丝 ${merchant.fans}   已售 ${merchant.sold}',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.grey.shade700,
                                           ),
-                                          decoration: BoxDecoration(
-                                            color: Colors.white,
-                                            border: Border.all(
-                                              color: Colors.black,
-                                              width: 1,
-                                            ),
-                                            borderRadius:
-                                                const BorderRadius.only(
-                                                  topRight: Radius.circular(4),
-                                                  bottomRight: Radius.circular(
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Container(
+                                              height: 20,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                  ),
+                                              decoration: const BoxDecoration(
+                                                color: Colors.black,
+                                                borderRadius: BorderRadius.only(
+                                                  topLeft: Radius.circular(4),
+                                                  bottomLeft: Radius.circular(
                                                     4,
                                                   ),
                                                 ),
-                                          ),
-                                          child: const Text(
-                                            '4.61分',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.black,
+                                              ),
+                                              alignment: Alignment.center,
+                                              child: const Text(
+                                                '旗舰店',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
                                             ),
-                                          ),
+                                            Container(
+                                              height: 20,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.white,
+                                                border: Border.all(
+                                                  color: Colors.black,
+                                                  width: 1,
+                                                ),
+                                                borderRadius:
+                                                    const BorderRadius.only(
+                                                      topRight: Radius.circular(
+                                                        4,
+                                                      ),
+                                                      bottomRight:
+                                                          Radius.circular(4),
+                                                    ),
+                                              ),
+                                              alignment: Alignment.center,
+                                              child: const Text(
+                                                '4.61分',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.black,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ],
                                     ),
-                                  ],
-                                ),
-                              ),
-                              // 右侧：红色椭圆 “进店” 按钮（稍宽）
-                              GestureDetector(
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (c) => const MerchantPage(),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  GestureDetector(
+                                    onTap: () {
+                                      if (_merchant != null) {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder:
+                                                (c) => MerchantPage(
+                                                  mid: merchant.id,
+                                                ),
+                                          ),
+                                        );
+                                      }
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 6,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.red,
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: const Text(
+                                        '进店',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.white,
+                                        ),
+                                      ),
                                     ),
-                                  );
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 6,
                                   ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.red,
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: const Text(
-                                    '进店',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ),
+                                ],
                               ),
-                            ],
-                          ),
+                            );
+                          },
                         ),
 
                         // 3. “图文详情”分隔条 (带 GlobalKey)
@@ -831,7 +1204,6 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                                     child: Center(child: Text('暂无推荐商品')),
                                   );
                                 }
-                                // 使用 GridView 显示，禁用内部滚动
                                 return Padding(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 8.0,
@@ -886,7 +1258,6 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
               bottom: 20,
               right: 20,
               child: FloatingActionButton(
-                // 改成白底并加阴影
                 backgroundColor: Colors.white,
                 elevation: 6.0,
                 shape: const CircleBorder(),
@@ -895,9 +1266,8 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // 横线
                     Container(width: 16, height: 2, color: Colors.black),
-                    // 向上箭头
+                    const SizedBox(height: 4),
                     const Icon(
                       Icons.arrow_upward,
                       color: Colors.black,
@@ -934,24 +1304,41 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const CircleAvatar(
-                              radius: 12,
-                              backgroundImage: NetworkImage(
-                                'https://tcwebchat.sporttery.cn/res/image.html?id=upload/c1302f5f80e7bf80cb7fa6684d79797b&6.png',
+                        // 底部“店铺”图标 + 文本，与上方“进店”逻辑一致
+                        GestureDetector(
+                          onTap: () {
+                            if (_merchant != null) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder:
+                                      (c) => MerchantPage(mid: _merchant!.id),
+                                ),
+                              );
+                            }
+                          },
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              CircleAvatar(
+                                radius: 12,
+                                backgroundImage:
+                                    _merchant != null
+                                        ? NetworkImage(_merchant!.image)
+                                        : null,
+                                backgroundColor:
+                                    _merchant == null ? Colors.grey : null,
                               ),
-                            ),
-                            const SizedBox(height: 2),
-                            const Text(
-                              '店铺',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.black,
+                              const SizedBox(height: 2),
+                              const Text(
+                                '店铺',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.black,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                         Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -1013,42 +1400,50 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                     ),
                     child: Row(
                       children: [
+                        // “加入购物车” 包裹时机——弹出底部选择面板
                         Expanded(
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Colors.red.shade50,
-                              borderRadius: const BorderRadius.only(
-                                topLeft: Radius.circular(20),
-                                bottomLeft: Radius.circular(20),
+                          child: GestureDetector(
+                            onTap: _showSelectionSheet,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.red.shade50,
+                                borderRadius: const BorderRadius.only(
+                                  topLeft: Radius.circular(20),
+                                  bottomLeft: Radius.circular(20),
+                                ),
                               ),
-                            ),
-                            alignment: Alignment.center,
-                            child: const Text(
-                              '加入购物车',
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.red,
-                                fontWeight: FontWeight.bold,
+                              alignment: Alignment.center,
+                              child: const Text(
+                                '加入购物车',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.red,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                           ),
                         ),
+                        // “立即购买” 也弹出同一个底部面板
                         Expanded(
-                          child: Container(
-                            decoration: const BoxDecoration(
-                              color: Colors.red,
-                              borderRadius: BorderRadius.only(
-                                topRight: Radius.circular(20),
-                                bottomRight: Radius.circular(20),
+                          child: GestureDetector(
+                            onTap: _showSelectionSheet,
+                            child: Container(
+                              decoration: const BoxDecoration(
+                                color: Colors.red,
+                                borderRadius: BorderRadius.only(
+                                  topRight: Radius.circular(20),
+                                  bottomRight: Radius.circular(20),
+                                ),
                               ),
-                            ),
-                            alignment: Alignment.center,
-                            child: const Text(
-                              '立即购买',
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
+                              alignment: Alignment.center,
+                              child: const Text(
+                                '立即购买',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                           ),
