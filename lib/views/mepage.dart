@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:xhs/components/side-drawer.dart';
 
 class MyPage extends StatefulWidget {
   const MyPage({super.key});
@@ -9,6 +10,7 @@ class MyPage extends StatefulWidget {
 
 class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final int randomAvatarIndex = DateTime.now().millisecondsSinceEpoch % 70 + 1;
 
   @override
@@ -26,6 +28,8 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey,
+      drawer: const SideDrawer(), // 抽离后的侧边栏
       body: Column(
         children: [
           // 顶部背景区域（整体高度收缩）
@@ -45,13 +49,17 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Icon(Icons.menu, color: Colors.white),
+                    // 菜单按钮，打开侧边栏
+                    IconButton(
+                      icon: const Icon(Icons.menu, color: Colors.white),
+                      onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+                    ),
                     Row(
-                      children: [
+                      children: const [
                         Icon(Icons.brush, color: Colors.white),
-                        const SizedBox(width: 16),
+                        SizedBox(width: 16),
                         Icon(Icons.qr_code, color: Colors.white),
-                        const SizedBox(width: 16),
+                        SizedBox(width: 16),
                         Icon(Icons.share, color: Colors.white),
                       ],
                     ),
@@ -71,62 +79,77 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: const [
-                        Text('小红书用户', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                        Text(
+                          '小红书用户',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold),
+                        ),
                         SizedBox(height: 4),
-                        Text('小红书号：12345678', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                        Text(
+                          '小红书号：12345678',
+                          style: TextStyle(color: Colors.white70, fontSize: 13),
+                        ),
                       ],
                     ),
                   ],
                 ),
 
                 const SizedBox(height: 8),
-
                 // 简介
-                const Text('简介：爱旅行，爱美食', style: TextStyle(color: Colors.white, fontSize: 13)),
-
+                const Text('简介：爱旅行，爱美食',
+                    style: TextStyle(color: Colors.white, fontSize: 13)),
                 const SizedBox(height: 6),
-
                 // 性别
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.grey[200],
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(12)),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: const [
                       Icon(Icons.female, size: 14, color: Colors.pink),
                       SizedBox(width: 4),
-                      Text('女生', style: TextStyle(color: Colors.black87, fontSize: 13)),
+                      Text('女生',
+                          style:
+                          TextStyle(color: Colors.black87, fontSize: 13)),
                     ],
                   ),
                 ),
 
                 const SizedBox(height: 10),
-
                 // 关注 粉丝 获赞 + 右侧按钮
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Row(
                       children: const [
-                        Text('关注 123', style: TextStyle(color: Colors.white, fontSize: 13)),
+                        Text('关注 123',
+                            style:
+                            TextStyle(color: Colors.white, fontSize: 13)),
                         SizedBox(width: 12),
-                        Text('粉丝 456', style: TextStyle(color: Colors.white, fontSize: 13)),
+                        Text('粉丝 456',
+                            style:
+                            TextStyle(color: Colors.white, fontSize: 13)),
                         SizedBox(width: 12),
-                        Text('获赞 789', style: TextStyle(color: Colors.white, fontSize: 13)),
+                        Text('获赞 789',
+                            style:
+                            TextStyle(color: Colors.white, fontSize: 13)),
                       ],
                     ),
                     Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 4),
                           decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: const Text('编辑资料', style: TextStyle(color: Colors.black, fontSize: 13)),
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(20)),
+                          child: const Text('编辑资料',
+                              style: TextStyle(
+                                  color: Colors.black, fontSize: 13)),
                         ),
                         const SizedBox(width: 12),
                         const Icon(Icons.settings, color: Colors.white),
@@ -142,11 +165,10 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
               // 渐变背景 + 圆角
               ClipRRect(
                 borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(24),
-                  topRight: Radius.circular(24),
-                ),
+                    topLeft: Radius.circular(24),
+                    topRight: Radius.circular(24)),
                 child: Container(
-                  height: 50, // 控制高度，适配视觉
+                  height: 50,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [Colors.deepPurple, Colors.indigo.shade900],
@@ -156,38 +178,32 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
                   ),
                 ),
               ),
-
               // TabBar
               Container(
-                height: 50, // 同样的高度
+                height: 50,
                 color: Colors.white,
                 child: TabBar(
                   controller: _tabController,
                   indicatorColor: Colors.red,
                   labelColor: Colors.black,
                   unselectedLabelColor: Colors.grey,
-                  labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                  labelStyle: const TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.bold),
                   unselectedLabelStyle: const TextStyle(fontSize: 14),
-                  tabs: const [
-                    Tab(text: '笔记'),
-                    Tab(text: '收藏'),
-                    Tab(text: '赞过'),
-                  ],
+                  tabs: const [Tab(text: '笔记'), Tab(text: '收藏'), Tab(text: '赞过')],
                 ),
               ),
             ],
           ),
-
-
           Expanded(
             child: Container(
-              color: const Color(0xFFEEEEEE), // #eee 背景
+              color: const Color(0xFFEEEEEE),
               child: TabBarView(
                 controller: _tabController,
                 children: const [
                   Center(child: Text('这里是笔记内容')),
                   Center(child: Text('这里是收藏内容')),
-                  Center(child: Text('这里是赞过内容')),
+                  Center(child: Text('这里是赞过内容'))
                 ],
               ),
             ),
