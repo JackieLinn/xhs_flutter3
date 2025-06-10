@@ -1,5 +1,8 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:xhs/components/side-drawer.dart';
+import 'package:xhs/services/api_service.dart'; // Replace with the correct API service import
 
 class MyPage extends StatefulWidget {
   const MyPage({super.key});
@@ -11,12 +14,76 @@ class MyPage extends StatefulWidget {
 class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  final int randomAvatarIndex = DateTime.now().millisecondsSinceEpoch % 70 + 1;
+  final FlutterSecureStorage _storage = const FlutterSecureStorage();
+
+  // Store the user's blogs
+  List<Map<String, dynamic>> blogs = [];
+
+  // User info variables
+  String username = '';
+  String avatarUrl = '';
+  int followCount = 0;
+  int fansCount = 0;
+  int likesCount = 0;
+  int sex = 0; // 0: Unknown, 1: Male, 2: Female
+  String xhsId = ''; // Xiaohongshu ID
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    fetchUserInfo(); // Fetch user info when the page is initialized
+    fetchBlogs(); // Fetch blogs when the page is initialized
+  }
+
+  // Fetch the user information from the API
+  Future<void> fetchUserInfo() async {
+    try {
+      // Retrieve the uid from the access token
+      final raw = await _storage.read(key: 'access_token');
+      if (raw == null) throw Exception('User is not logged in');
+
+      final obj = jsonDecode(raw) as Map<String, dynamic>;
+      final uid = obj['id'].toString(); // Get the uid from the token
+
+      final response = await ApiService.getApi('/api/account/get-account-by-userId', queryParameters: {'uid': uid});
+      setState(() {
+        username = response['username'];
+        avatarUrl = response['avatar'];
+        followCount = response['follow'];
+        fansCount = response['fans'];
+        likesCount = response['likes'];
+        sex = response['sex']; // 0 = Unknown, 1 = Male, 2 = Female
+        xhsId = response['id'].toString(); // Use user id as Xiaohongshu ID
+      });
+    } catch (e) {
+      debugPrint('Failed to fetch user info: $e');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to fetch user info')));
+    }
+  }
+
+  // Fetch the blogs using the API
+  Future<void> fetchBlogs() async {
+    try {
+      // Retrieve the uid from the access token
+      final raw = await _storage.read(key: 'access_token');
+      if (raw == null) throw Exception('User is not logged in');
+
+      final obj = jsonDecode(raw) as Map<String, dynamic>;
+      final uid = obj['id'].toString(); // Get the uid from the token
+
+      final response = await ApiService.getApi('/auth/blogs/uid', queryParameters: {'uid': uid});
+      setState(() {
+        blogs = (response as List).map((e) => {
+          'title': e['title'],
+          'content': e['content'],
+          'createdAt': e['createTime'],
+        }).toList();
+      });
+    } catch (e) {
+      debugPrint('Failed to fetch blogs: $e');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to fetch blogs')));
+    }
   }
 
   @override
@@ -29,10 +96,10 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
   Widget build(BuildContext context) {
     return Scaffold(
       key: _scaffoldKey,
-      drawer: const SideDrawer(), // 抽离后的侧边栏
+      drawer: const SideDrawer(),
       body: Column(
         children: [
-          // 顶部背景区域（整体高度收缩）
+          // Top background section
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -49,7 +116,7 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // 菜单按钮，打开侧边栏
+                    // Menu button
                     IconButton(
                       icon: const Icon(Icons.menu, color: Colors.white),
                       onPressed: () => _scaffoldKey.currentState?.openDrawer(),
@@ -66,90 +133,74 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
                   ],
                 ),
                 const SizedBox(height: 12),
-
-                // 头像 + 昵称/小红书号
+                // Avatar + Name / Xiaohongshu ID
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     CircleAvatar(
                       radius: 32,
-                      backgroundImage: NetworkImage('https://i.pravatar.cc/150?img=$randomAvatarIndex'),
+                      backgroundImage: NetworkImage(avatarUrl.isEmpty ? 'https://i.pravatar.cc/150?img=1' : avatarUrl), // Fallback image if no avatar
                     ),
                     const SizedBox(width: 12),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
+                      children: [
                         Text(
-                          '小红书用户',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold),
+                          username.isEmpty ? '小红书用户' : username,
+                          style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                         ),
-                        SizedBox(height: 4),
+                        const SizedBox(height: 4),
                         Text(
-                          '小红书号：12345678',
+                          '小红书号：$xhsId',
                           style: TextStyle(color: Colors.white70, fontSize: 13),
                         ),
                       ],
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 8),
-                // 简介
-                const Text('简介：爱旅行，爱美食',
-                    style: TextStyle(color: Colors.white, fontSize: 13)),
+                const Text('简介：爱旅行，爱美食', style: TextStyle(color: Colors.white, fontSize: 13)),
                 const SizedBox(height: 6),
-                // 性别
+                // Gender
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                      color: Colors.grey[200],
-                      borderRadius: BorderRadius.circular(12)),
+                  decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(12)),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
-                    children: const [
-                      Icon(Icons.female, size: 14, color: Colors.pink),
-                      SizedBox(width: 4),
-                      Text('女生',
-                          style:
-                          TextStyle(color: Colors.black87, fontSize: 13)),
+                    children: [
+                      Icon(
+                        sex == 1 ? Icons.male : (sex == 2 ? Icons.female : Icons.transgender),
+                        size: 14,
+                        color: Colors.pink,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        sex == 1 ? '男' : (sex == 2 ? '女' : '未知'),
+                        style: TextStyle(color: Colors.black87, fontSize: 13),
+                      ),
                     ],
                   ),
                 ),
-
                 const SizedBox(height: 10),
-                // 关注 粉丝 获赞 + 右侧按钮
+                // Followers, Fans, Likes + Right button
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Row(
-                      children: const [
-                        Text('关注 123',
-                            style:
-                            TextStyle(color: Colors.white, fontSize: 13)),
+                      children: [
+                        Text('关注 $followCount', style: TextStyle(color: Colors.white, fontSize: 13)),
                         SizedBox(width: 12),
-                        Text('粉丝 456',
-                            style:
-                            TextStyle(color: Colors.white, fontSize: 13)),
+                        Text('粉丝 $fansCount', style: TextStyle(color: Colors.white, fontSize: 13)),
                         SizedBox(width: 12),
-                        Text('获赞 789',
-                            style:
-                            TextStyle(color: Colors.white, fontSize: 13)),
+                        Text('获赞 $likesCount', style: TextStyle(color: Colors.white, fontSize: 13)),
                       ],
                     ),
                     Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 4),
-                          decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(20)),
-                          child: const Text('编辑资料',
-                              style: TextStyle(
-                                  color: Colors.black, fontSize: 13)),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+                          child: const Text('编辑资料', style: TextStyle(color: Colors.black, fontSize: 13)),
                         ),
                         const SizedBox(width: 12),
                         const Icon(Icons.settings, color: Colors.white),
@@ -160,13 +211,12 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
               ],
             ),
           ),
+          // TabBar section
           Stack(
             children: [
-              // 渐变背景 + 圆角
+              // Gradient background + Rounded Corners
               ClipRRect(
-                borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(24),
-                    topRight: Radius.circular(24)),
+                borderRadius: const BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
                 child: Container(
                   height: 50,
                   decoration: BoxDecoration(
@@ -187,23 +237,33 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
                   indicatorColor: Colors.red,
                   labelColor: Colors.black,
                   unselectedLabelColor: Colors.grey,
-                  labelStyle: const TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.bold),
+                  labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                   unselectedLabelStyle: const TextStyle(fontSize: 14),
                   tabs: const [Tab(text: '笔记'), Tab(text: '收藏'), Tab(text: '赞过')],
                 ),
               ),
             ],
           ),
+          // TabBarView for displaying content
           Expanded(
             child: Container(
               color: const Color(0xFFEEEEEE),
               child: TabBarView(
                 controller: _tabController,
-                children: const [
-                  Center(child: Text('这里是笔记内容')),
-                  Center(child: Text('这里是收藏内容')),
-                  Center(child: Text('这里是赞过内容'))
+                children: [
+                  // Notes Tab
+                  ListView.builder(
+                    itemCount: blogs.length,
+                    itemBuilder: (context, index) {
+                      return ListTile(
+                        title: Text(blogs[index]['title']),
+                        subtitle: Text(blogs[index]['content']),
+                      );
+                    },
+                  ),
+                  // Other Tabs content
+                  const Center(child: Text('这里是收藏内容')),
+                  const Center(child: Text('这里是赞过内容')),
                 ],
               ),
             ),

@@ -43,8 +43,8 @@ class Blog {
       likes: json['likes'] as int? ?? 0,
       draft: json['draft'] as bool? ?? false,
       isVideo: json['is_video'] as bool? ?? false,
-      authorName: user?['nickname'] as String? ?? '匿名',
-      authorAvatar: user?['avatarUrl'] as String? ?? '',
+      authorName: user?['username'] as String? ?? '匿名',
+      authorAvatar: user?['avatar'] as String? ?? '',
       imageUrls: images.map((e) => e['url'] as String).toList(),
     );
   }
@@ -170,7 +170,7 @@ class _Page1State extends State<Page1> with SingleTickerProviderStateMixin {
                             authorAvatar: blog.authorAvatar,
                             imageUrls: blog.imageUrls,
                             title: blog.title,
-                            content: blog.content,
+                            content: blog.content, blogId: blog.id,
                           ),
                         ),
                       );
