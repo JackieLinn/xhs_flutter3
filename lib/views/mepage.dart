@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:xhs/components/side-drawer.dart';
-import 'package:xhs/services/api_service.dart'; // Replace with the correct API service import
+import 'package:xhs/services/api_service.dart';
 
 class MyPage extends StatefulWidget {
   const MyPage({super.key});
@@ -39,7 +39,6 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
   // Fetch the user information from the API
   Future<void> fetchUserInfo() async {
     try {
-      // Retrieve the uid from the access token
       final raw = await _storage.read(key: 'access_token');
       if (raw == null) throw Exception('User is not logged in');
 
@@ -53,7 +52,7 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
         followCount = response['follow'];
         fansCount = response['fans'];
         likesCount = response['likes'];
-        sex = response['sex']; // 0 = Unknown, 1 = Male, 2 = Female
+        sex = response['sex'];
         xhsId = response['id'].toString(); // Use user id as Xiaohongshu ID
       });
     } catch (e) {
@@ -65,7 +64,6 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
   // Fetch the blogs using the API
   Future<void> fetchBlogs() async {
     try {
-      // Retrieve the uid from the access token
       final raw = await _storage.read(key: 'access_token');
       if (raw == null) throw Exception('User is not logged in');
 
@@ -78,6 +76,10 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
           'title': e['title'],
           'content': e['content'],
           'createdAt': e['createTime'],
+          'likes': e['likes'] ?? 0,
+          'imageUrl': (e['images'] != null && e['images'].isNotEmpty)
+              ? e['images'][0]['url']
+              : '',
         }).toList();
       });
     } catch (e) {
@@ -116,7 +118,6 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Menu button
                     IconButton(
                       icon: const Icon(Icons.menu, color: Colors.white),
                       onPressed: () => _scaffoldKey.currentState?.openDrawer(),
@@ -139,7 +140,7 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
                   children: [
                     CircleAvatar(
                       radius: 32,
-                      backgroundImage: NetworkImage(avatarUrl.isEmpty ? 'https://i.pravatar.cc/150?img=1' : avatarUrl), // Fallback image if no avatar
+                      backgroundImage: NetworkImage(avatarUrl.isEmpty ? 'https://i.pravatar.cc/150?img=1' : avatarUrl),
                     ),
                     const SizedBox(width: 12),
                     Column(
@@ -251,13 +252,55 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  // Notes Tab
-                  ListView.builder(
+                  // Notes Tab - Updated for 2-column layout
+                  GridView.builder(
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2, // Two columns
+                      crossAxisSpacing: 8,
+                      mainAxisSpacing: 8,
+                    ),
                     itemCount: blogs.length,
                     itemBuilder: (context, index) {
-                      return ListTile(
-                        title: Text(blogs[index]['title']),
-                        subtitle: Text(blogs[index]['content']),
+                      return Card(
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        child: Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (blogs[index]['imageUrl'] != '') ...[
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Center(
+                                    child:Image.network(
+                                    blogs[index]['imageUrl'],
+                                    fit: BoxFit.cover,
+                                    height: 100, // Set image height for better layout control
+                                  ),)
+                                ),
+                                const SizedBox(height: 10),
+                              ],
+                              Text(
+                                blogs[index]['title'],
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 5),
+                              Text(
+                                blogs[index]['content'],
+                                style: const TextStyle(fontSize: 10, color: Colors.black54),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  const Icon(Icons.thumb_up, size: 16),
+                                  const SizedBox(width: 5),
+                                  Text(blogs[index]['likes'].toString()),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
                       );
                     },
                   ),

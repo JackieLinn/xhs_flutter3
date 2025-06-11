@@ -6,7 +6,7 @@ import 'package:xhs/views/searchpage.dart';
 import 'package:xhs/views/blog_page.dart';
 import 'package:xhs/services/api_service.dart';
 
-/// 博客数据模型，对应后端 Blog 实体及 RestBean 包装
+/// 博客数据模型
 class Blog {
   final int id;
   final int uid;
@@ -61,35 +61,85 @@ class _Page1State extends State<Page1> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final _storage = const FlutterSecureStorage();
   late Future<List<Blog>> _futureBlogs;
+  late Future<List<Blog>> _futureFollowingBlogs;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this, initialIndex: 1);
     _futureBlogs = fetchRandomBlogs(page: 1, size: 10);
+    _futureFollowingBlogs = fetchFollowingBlogs();
   }
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  /// 获取随机博客
+  /// 获取推荐博客
   Future<List<Blog>> fetchRandomBlogs({required int page, required int size}) async {
     final data = await ApiService.getApi(
       '/auth/blogs/random',
       queryParameters: {'page': page.toString(), 'size': size.toString()},
     );
-    return (data as List)
-        .map((e) => Blog.fromJson(e as Map<String, dynamic>))
-        .toList();
+    return (data as List).map((e) => Blog.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  /// 获取已关注用户的博客
+  Future<List<Blog>> fetchFollowingBlogs() async {
+    try {
+      final auth = await ApiService.getAuthObject(); // 获取本地 uid
+      final uid = auth['id'].toString();
+
+      final data = await ApiService.getApi(
+        '/auth/blogs/following',
+        queryParameters: {'uid': uid}, // 如果你的后端已改为从token中解析，这行可以删
+      );
+      return (data as List).map((e) => Blog.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (e) {
+      debugPrint('获取关注博客失败: $e');
+      rethrow;
+    }
+  }
+
+  /// 重用的 blog 列表 UI 构建器
+  Widget buildBlogGrid(List<Blog> blogs) {
+    return GridView.builder(
+      padding: const EdgeInsets.all(8),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+        childAspectRatio: 0.65,
+      ),
+      itemCount: blogs.length,
+      itemBuilder: (context, index) {
+        final blog = blogs[index];
+        return TweetCard(
+          imageUrl: blog.imageUrls.isNotEmpty ? blog.imageUrls.first : '',
+          title: blog.title,
+          avatarUrl: blog.authorAvatar,
+          username: blog.authorName,
+          likes: blog.likes,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => BlogPage(
+                  blogId: blog.id,
+                  authorName: blog.authorName,
+                  authorAvatar: blog.authorAvatar,
+                  imageUrls: blog.imageUrls,
+                  title: blog.title,
+                  content: blog.content,
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5), // 页面背景，稍淡于 #EEE
+      backgroundColor: const Color(0xFFF5F5F5),
       drawer: const SideDrawer(),
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(60),
@@ -109,8 +159,6 @@ class _Page1State extends State<Page1> with SingleTickerProviderStateMixin {
                   labelColor: Colors.black,
                   unselectedLabelColor: Colors.grey,
                   labelStyle: const TextStyle(fontSize: 16),
-                  unselectedLabelStyle: const TextStyle(fontSize: 16),
-                  overlayColor: MaterialStateProperty.all(Colors.transparent),
                   tabs: const [
                     Tab(text: "关注"),
                     Tab(text: "发现"),
@@ -134,50 +182,30 @@ class _Page1State extends State<Page1> with SingleTickerProviderStateMixin {
       body: TabBarView(
         controller: _tabController,
         children: [
-          const Center(child: Text("关注内容", style: TextStyle(fontSize: 24))),
+          FutureBuilder<List<Blog>>(
+            future: _futureFollowingBlogs,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              } else if (snapshot.hasError) {
+                return Center(child: Text('加载失败：${snapshot.error}'));
+              }
+              final blogs = snapshot.data!;
+              return blogs.isEmpty
+                  ? const Center(child: Text("暂无关注内容"))
+                  : buildBlogGrid(blogs);
+            },
+          ),
           FutureBuilder<List<Blog>>(
             future: _futureBlogs,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               } else if (snapshot.hasError) {
-                return Center(child: Text('加载失败：\${snapshot.error}'));
+                return Center(child: Text('加载失败：${snapshot.error}'));
               }
               final blogs = snapshot.data!;
-              return GridView.builder(
-                padding: const EdgeInsets.all(8),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 8,
-                  mainAxisSpacing: 8,
-                  childAspectRatio: 0.65,
-                ),
-                itemCount: blogs.length,
-                itemBuilder: (context, index) {
-                  final blog = blogs[index];
-                  return TweetCard(
-                    imageUrl: blog.imageUrls.isNotEmpty ? blog.imageUrls.first : '',
-                    title: blog.title,
-                    avatarUrl: blog.authorAvatar,
-                    username: blog.authorName,
-                    likes: blog.likes,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => BlogPage(
-                            authorName: blog.authorName,
-                            authorAvatar: blog.authorAvatar,
-                            imageUrls: blog.imageUrls,
-                            title: blog.title,
-                            content: blog.content, blogId: blog.id,
-                          ),
-                        ),
-                      );
-                    },
-                  );
-                },
-              );
+              return buildBlogGrid(blogs);
             },
           ),
           const Center(child: Text("昆明内容", style: TextStyle(fontSize: 24))),
