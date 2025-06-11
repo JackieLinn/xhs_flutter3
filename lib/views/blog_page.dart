@@ -37,7 +37,29 @@ class _BlogPageState extends State<BlogPage> {
   @override
   void initState() {
     super.initState();
+    recordVisit(); // 新增：记录浏览历史
     fetchComments();
+  }
+
+  Future<void> recordVisit() async {
+    try {
+      final raw = await _storage.read(key: 'access_token');
+      if (raw == null) return;
+      final obj = jsonDecode(raw) as Map<String, dynamic>;
+      final uid = int.parse(obj['id'].toString());
+
+      final now = DateTime.now();
+      final formattedDate = DateFormat('yyyy-MM-dd HH:mm:ss').format(now);
+
+      await ApiService.postApi('/auth/history/upload', data: {
+        "uid": uid,
+        "blogId": widget.blogId,
+        "createTime": formattedDate,
+      });
+
+    } catch (e) {
+      debugPrint('记录浏览失败: $e');
+    }
   }
 
   Future<void> fetchComments() async {
@@ -52,8 +74,8 @@ class _BlogPageState extends State<BlogPage> {
           'avatar': e['user']?['avatar']?.toString() ?? 'https://i.pravatar.cc/40',
           'name': e['user']?['username']?.toString() ?? '匿名用户',
           'text': e['content']?.toString() ?? '',
-          'createTime': e['createTime']?.toString() ?? '',  // 时间
-          'likes': e['likes'] ?? 0,  // 点赞数
+          'createTime': e['createTime']?.toString() ?? '',
+          'likes': e['likes'] ?? 0,
         })
             .toList();
       });
@@ -67,7 +89,6 @@ class _BlogPageState extends State<BlogPage> {
     if (text.isEmpty) return;
 
     try {
-      // 获取当前用户 uid
       final raw = await _storage.read(key: 'access_token');
       if (raw == null) throw Exception('未登录用户无法评论');
       final obj = jsonDecode(raw) as Map<String, dynamic>;
@@ -85,7 +106,7 @@ class _BlogPageState extends State<BlogPage> {
       });
 
       _commentController.clear();
-      await fetchComments(); // 评论成功后刷新评论列表
+      await fetchComments();
     } catch (e) {
       debugPrint('评论提交失败：$e');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -139,7 +160,8 @@ class _BlogPageState extends State<BlogPage> {
                       onPageChanged: (i) => setState(() => _currentPage = i),
                       itemBuilder: (context, index) => ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: Image.network(widget.imageUrls[index], fit: BoxFit.cover, width: double.infinity),
+                        child: Image.network(widget.imageUrls[index],
+                            fit: BoxFit.cover, width: double.infinity),
                       ),
                     ),
                   ),
@@ -188,8 +210,8 @@ class _BlogPageState extends State<BlogPage> {
                       Text(c['text']!),
                       const SizedBox(height: 4),
                       Text(
-                        c['createTime'] ?? '', // 显示评论时间
-                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                        c['createTime'] ?? '',
+                        style: const TextStyle(color: Colors.grey, fontSize: 12),
                       ),
                     ],
                   ),
@@ -198,11 +220,9 @@ class _BlogPageState extends State<BlogPage> {
                     children: [
                       IconButton(
                         icon: const Icon(Icons.favorite, color: Colors.red, size: 20),
-                        onPressed: () {
-                          // 点赞逻辑
-                        },
+                        onPressed: () {},
                       ),
-                      Text('${c['likes']}', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      Text('${c['likes']}', style: const TextStyle(color: Colors.grey, fontSize: 12)),
                     ],
                   ),
                 )),
