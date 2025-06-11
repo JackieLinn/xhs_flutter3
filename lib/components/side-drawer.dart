@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:xhs/views/friends_page.dart';
 import 'package:xhs/views/drafts_page.dart';
 import 'package:xhs/views/comments_page.dart';
@@ -9,6 +10,7 @@ class SideDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final _storage = const FlutterSecureStorage(); // ← 实例化
     const bottomBarHeight = kBottomNavigationBarHeight;
     return Drawer(
       child: ListView(
@@ -158,6 +160,19 @@ class SideDrawer extends StatelessWidget {
                   onTap: () {
                     Navigator.pop(context);
                     // TODO: 跳转社区公约页面
+                  },
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.logout),
+                  title: const Text('退出登录'),
+                  onTap: () async {
+                    // 先关闭 drawer
+                    Navigator.pop(context);
+                    // 删除本地存储的 token
+                    await _storage.delete(key: 'access_token');
+                    // 跳回登录页，并清空导航栈
+                    Navigator.pushNamedAndRemoveUntil(context, '/', (r) => false);
                   },
                 ),
               ],
