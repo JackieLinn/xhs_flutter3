@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:xhs/views/mepage.dart';
+import 'package:xhs/views/write_blog_page.dart';
 
 import 'views/homepage.dart';
 import 'views/hotpage.dart'; // Page2
@@ -57,7 +58,7 @@ class _MyHomePageState extends State<MyHomePage> {
     final List<Widget> pages = [
       Page1(),
       _page2,
-      Page3(),
+      WriteBlogPage(),
       const ShopPage(),
       const MyPage(),
     ];

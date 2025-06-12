@@ -23,6 +23,7 @@ class TweetCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Card(
+        color: Colors.white, // 纯白背景
         elevation: 3,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8), // 改小圆角

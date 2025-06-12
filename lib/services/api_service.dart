@@ -161,4 +161,10 @@ class ApiService {
     // 直接返回 data 字段（可能是 Map<String, dynamic>、也可能是 List<dynamic>、或 null）
     return jsonMap['data'];
   }
+
+  static Future<Map<String, dynamic>> getAuthObject() async {
+    final raw = await _storage.read(key: _authKey);
+    if (raw == null) throw Exception('尚未登录');
+    return jsonDecode(raw) as Map<String, dynamic>;
+  }
 }
