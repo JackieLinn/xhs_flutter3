@@ -1,12 +1,57 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart'; // ← 新增
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:xhs/components/side-drawer.dart';
 import 'package:xhs/components/tweetcard.dart';
 import 'package:xhs/views/searchpage.dart';
+import 'package:xhs/views/blog_page.dart';
+import 'package:xhs/services/api_service.dart';
 
-import 'detailpage.dart';
+/// 博客数据模型
+class Blog {
+  final int id;
+  final int uid;
+  final String title;
+  final String content;
+  final int likes;
+  final bool draft;
+  final bool isVideo;
+  final String authorName;
+  final String authorAvatar;
+  final List<String> imageUrls;
+
+  Blog({
+    required this.id,
+    required this.uid,
+    required this.title,
+    required this.content,
+    required this.likes,
+    required this.draft,
+    required this.isVideo,
+    required this.authorName,
+    required this.authorAvatar,
+    required this.imageUrls,
+  });
+
+  factory Blog.fromJson(Map<String, dynamic> json) {
+    final user = json['user'] as Map<String, dynamic>?;
+    final images = (json['images'] as List<dynamic>?) ?? [];
+    return Blog(
+      id: json['id'] as int,
+      uid: json['uid'] as int,
+      title: json['title'] as String? ?? '',
+      content: json['content'] as String? ?? '',
+      likes: json['likes'] as int? ?? 0,
+      draft: json['draft'] as bool? ?? false,
+      isVideo: json['is_video'] as bool? ?? false,
+      authorName: user?['username'] as String? ?? '匿名',
+      authorAvatar: user?['avatar'] as String? ?? '',
+      imageUrls: images.map((e) => e['url'] as String).toList(),
+    );
+  }
+}
 
 class Page1 extends StatefulWidget {
-  const Page1({super.key});
+  const Page1({Key? key}) : super(key: key);
 
   @override
   State<Page1> createState() => _Page1State();
@@ -14,60 +59,88 @@ class Page1 extends StatefulWidget {
 
 class _Page1State extends State<Page1> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final _storage = const FlutterSecureStorage(); // ← 实例化
+  final _storage = const FlutterSecureStorage();
+  late Future<List<Blog>> _futureBlogs;
+  late Future<List<Blog>> _futureFollowingBlogs;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this, initialIndex: 1);
+    _futureBlogs = fetchRandomBlogs(page: 1, size: 10);
+    _futureFollowingBlogs = fetchFollowingBlogs();
   }
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
+  /// 获取推荐博客
+  Future<List<Blog>> fetchRandomBlogs({required int page, required int size}) async {
+    final data = await ApiService.getApi(
+      '/auth/blogs/random',
+      queryParameters: {'page': page.toString(), 'size': size.toString()},
+    );
+    return (data as List).map((e) => Blog.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  /// 获取已关注用户的博客
+  Future<List<Blog>> fetchFollowingBlogs() async {
+    try {
+      final auth = await ApiService.getAuthObject(); // 获取本地 uid
+      final uid = auth['id'].toString();
+
+      final data = await ApiService.getApi(
+        '/auth/blogs/following',
+        queryParameters: {'uid': uid}, // 如果你的后端已改为从token中解析，这行可以删
+      );
+      return (data as List).map((e) => Blog.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (e) {
+      debugPrint('获取关注博客失败: $e');
+      rethrow;
+    }
+  }
+
+  /// 重用的 blog 列表 UI 构建器
+  Widget buildBlogGrid(List<Blog> blogs) {
+    return GridView.builder(
+      padding: const EdgeInsets.all(8),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+        childAspectRatio: 0.65,
+      ),
+      itemCount: blogs.length,
+      itemBuilder: (context, index) {
+        final blog = blogs[index];
+        return TweetCard(
+          imageUrl: blog.imageUrls.isNotEmpty ? blog.imageUrls.first : '',
+          title: blog.title,
+          avatarUrl: blog.authorAvatar,
+          username: blog.authorName,
+          likes: blog.likes,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => BlogPage(
+                  blogId: blog.id,
+                  authorName: blog.authorName,
+                  authorAvatar: blog.authorAvatar,
+                  imageUrls: blog.imageUrls,
+                  title: blog.title,
+                  content: blog.content,
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            const DrawerHeader(
-              decoration: BoxDecoration(color: Colors.pinkAccent),
-              child: Text(
-                '菜单',
-                style: TextStyle(color: Colors.white, fontSize: 24),
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.person_add),
-              title: const Text('发现好友'),
-              onTap: () {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(const SnackBar(content: Text("发现好友点击")));
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.logout),
-              title: const Text('退出登录'),
-              onTap: () async {
-                // 先关闭 drawer
-                Navigator.pop(context);
-                // 删除本地存储的 token
-                await _storage.delete(key: 'access_token');
-                // 跳回登录页，并清空导航栈
-                Navigator.pushNamedAndRemoveUntil(context, '/', (r) => false);
-              },
-            ),
-            // 可以继续添加更多菜单项...
-          ],
-        ),
-      ),
+      backgroundColor: const Color(0xFFF5F5F5),
+      drawer: const SideDrawer(),
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(60),
         child: AppBar(
@@ -86,14 +159,11 @@ class _Page1State extends State<Page1> with SingleTickerProviderStateMixin {
                   labelColor: Colors.black,
                   unselectedLabelColor: Colors.grey,
                   labelStyle: const TextStyle(fontSize: 16),
-                  unselectedLabelStyle: const TextStyle(fontSize: 16),
-                  overlayColor: WidgetStateProperty.all(Colors.transparent),
                   tabs: const [
                     Tab(text: "关注"),
                     Tab(text: "发现"),
                     Tab(text: "昆明"),
                   ],
-                  dividerColor: Colors.transparent,
                 ),
               ),
               IconButton(
@@ -112,45 +182,31 @@ class _Page1State extends State<Page1> with SingleTickerProviderStateMixin {
       body: TabBarView(
         controller: _tabController,
         children: [
-          const Center(child: Text("发现内容", style: TextStyle(fontSize: 24))),
-          GridView.count(
-            padding: const EdgeInsets.all(8),
-            crossAxisCount: 2,
-            crossAxisSpacing: 8,
-            mainAxisSpacing: 8,
-            childAspectRatio: 0.65,
-            children: [
-              TweetCard(
-                imageUrl: 'https://picsum.photos/400/200',
-                title: '这是一条推文标题',
-                avatarUrl: 'https://i.pravatar.cc/100',
-                username: '小明',
-                likes: 123,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (c) => const DetailPage(title: '这是一条推文标题'),
-                    ),
-                  );
-                },
-              ),
-              TweetCard(
-                imageUrl: 'https://picsum.photos/400/201',
-                title: '又一条推文',
-                avatarUrl: 'https://i.pravatar.cc/101',
-                username: '小红',
-                likes: 88,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (c) => const DetailPage(title: '又一条推文'),
-                    ),
-                  );
-                },
-              ),
-            ],
+          FutureBuilder<List<Blog>>(
+            future: _futureFollowingBlogs,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              } else if (snapshot.hasError) {
+                return Center(child: Text('加载失败：${snapshot.error}'));
+              }
+              final blogs = snapshot.data!;
+              return blogs.isEmpty
+                  ? const Center(child: Text("暂无关注内容"))
+                  : buildBlogGrid(blogs);
+            },
+          ),
+          FutureBuilder<List<Blog>>(
+            future: _futureBlogs,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              } else if (snapshot.hasError) {
+                return Center(child: Text('加载失败：${snapshot.error}'));
+              }
+              final blogs = snapshot.data!;
+              return buildBlogGrid(blogs);
+            },
           ),
           const Center(child: Text("昆明内容", style: TextStyle(fontSize: 24))),
         ],
