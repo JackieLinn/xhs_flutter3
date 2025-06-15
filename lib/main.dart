@@ -26,22 +26,34 @@ class MyApp extends StatelessWidget {
       initialRoute: '/',  // 初始路由为登录页
       routes: {
         '/': (context) => const LoginPage(),
-        '/home': (context) => const MyHomePage(title: 'Ssexhs'),
+        '/home': (context) {
+          final args = ModalRoute.of(context)
+              ?.settings
+              .arguments as Map<String, dynamic>?;
+          final initialIndex = (args != null && args['initialIndex'] is int)
+              ? args['initialIndex'] as int
+              : 0;
+          return MyHomePage(
+            title: 'Ssexhs',
+            initialIndex: initialIndex,
+          );
+        },
       },
     );
   }
 }
 
 class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
+  const MyHomePage({super.key, required this.title, this.initialIndex = 0});
   final String title;
+  final int initialIndex;
 
   @override
   State<MyHomePage> createState() => _MyHomePageState();
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  int _selectedIndex = 0;
+  late int _selectedIndex;
 
   final GlobalKey<Page2State> _page2Key =
       GlobalKey<Page2State>(); // 新增 GlobalKey
@@ -51,6 +63,7 @@ class _MyHomePageState extends State<MyHomePage> {
   void initState() {
     super.initState();
     _page2 = Page2(key: _page2Key); // 绑定 key
+    _selectedIndex = widget.initialIndex;
   }
 
   @override

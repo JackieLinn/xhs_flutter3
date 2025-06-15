@@ -15,14 +15,12 @@ class DeliveryAddressUpdateRO {
     required this.uid,
   });
 
-  Map<String, dynamic> toJson() {
-    return {
-      'did': did,
-      'name': name,
-      'sex': sex,
-      'phone': phone,
-      'address': address,
-      'uid': uid,
-    };
-  }
+  Map<String, dynamic> toJson() => {
+    'did': did,
+    'name': name,
+    'sex': sex,
+    'phone': phone,
+    'address': address,
+    'uid': uid,
+  };
 }
