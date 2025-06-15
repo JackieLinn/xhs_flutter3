@@ -149,64 +149,69 @@ class _MerchantPageState extends State<MerchantPage> {
                                 bottom: 0, // 填充剩余空间，让内容靠下对齐
                                 child: Opacity(
                                   opacity: 1.0 - fade, // 渐变消失
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      mainAxisAlignment: MainAxisAlignment.end, // 内容靠下对齐
-                                      children: [
-                                        Row(
+                                  child: Transform.translate(
+                                    offset: Offset(0, -40 * fade), // 增加位移距离
+                                    child: ClipRect( // 添加裁剪
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                                        child: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
+                                          mainAxisAlignment: MainAxisAlignment.end, // 内容靠下对齐
                                           children: [
-                                            // 商家头像
-                                            ClipRRect(
-                                              borderRadius: BorderRadius.circular(40),
-                                              child: merchant!["image"] != null && merchant!["image"].toString().isNotEmpty
-                                                  ? Image.network(
-                                                      merchant!["image"],
-                                                      width: 80,
-                                                      height: 80,
-                                                      fit: BoxFit.cover,
-                                                    )
-                                                  : Container(
-                                                      width: 80,
-                                                      height: 80,
-                                                      color: Colors.grey.shade300,
-                                                      child: const Icon(Icons.store, size: 40, color: Colors.white),
-                                                    ),
+                                            Row(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                // 商家头像
+                                                ClipRRect(
+                                                  borderRadius: BorderRadius.circular(40),
+                                                  child: merchant!["image"] != null && merchant!["image"].toString().isNotEmpty
+                                                      ? Image.network(
+                                                          merchant!["image"],
+                                                          width: 80,
+                                                          height: 80,
+                                                          fit: BoxFit.cover,
+                                                        )
+                                                      : Container(
+                                                          width: 80,
+                                                          height: 80,
+                                                          color: Colors.grey.shade300,
+                                                          child: const Icon(Icons.store, size: 40, color: Colors.white),
+                                                        ),
+                                                ),
+                                                const SizedBox(width: 20),
+                                                // 右侧三行
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      Text(merchant!["name"] ?? '', style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                                                      const SizedBox(height: 8),
+                                                      Text(merchant!["introduction1"] ?? '', style: const TextStyle(color: Colors.white70, fontSize: 15)),
+                                                      const SizedBox(height: 8),
+                                                      Row(children: [const Icon(Icons.location_on, color: Colors.white70, size: 16), const SizedBox(width: 4), Expanded(child: Text(merchant!["address"] ?? '', style: const TextStyle(color: Colors.white70, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis))]),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
                                             ),
-                                            const SizedBox(width: 20),
-                                            // 右侧三行
-                                            Expanded(
-                                              child: Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(merchant!["name"] ?? '', style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                                                  const SizedBox(height: 8),
-                                                  Text(merchant!["introduction1"] ?? '', style: const TextStyle(color: Colors.white70, fontSize: 15)),
-                                                  const SizedBox(height: 8),
-                                                  Row(children: [const Icon(Icons.location_on, color: Colors.white70, size: 16), const SizedBox(width: 4), Expanded(child: Text(merchant!["address"] ?? '', style: const TextStyle(color: Colors.white70, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis))]),
-                                                ],
-                                              ),
+                                            const SizedBox(height: 18),
+                                            // 简介2
+                                            Text(merchant!["introduction2"] ?? '', style: const TextStyle(color: Colors.white, fontSize: 15), maxLines: 2, overflow: TextOverflow.ellipsis),
+                                            const SizedBox(height: 18),
+                                            // 关注/粉丝/点赞
+                                            Row(
+                                              children: [
+                                                _buildStat('关注', merchant!["follow"]?.toString() ?? '0'),
+                                                const SizedBox(width: 18),
+                                                _buildStat('粉丝', merchant!["fans"]?.toString() ?? '0'),
+                                                const SizedBox(width: 18),
+                                                _buildStat('获赞', merchant!["likes"]?.toString() ?? '0'),
+                                              ],
                                             ),
+                                            const SizedBox(height: 16), // 确保底部有一定留白
                                           ],
                                         ),
-                                        const SizedBox(height: 18),
-                                        // 简介2
-                                        Text(merchant!["introduction2"] ?? '', style: const TextStyle(color: Colors.white, fontSize: 15), maxLines: 2, overflow: TextOverflow.ellipsis),
-                                        const SizedBox(height: 18),
-                                        // 关注/粉丝/点赞
-                                        Row(
-                                          children: [
-                                            _buildStat('关注', merchant!["follow"]?.toString() ?? '0'),
-                                            const SizedBox(width: 18),
-                                            _buildStat('粉丝', merchant!["fans"]?.toString() ?? '0'),
-                                            const SizedBox(width: 18),
-                                            _buildStat('获赞', merchant!["likes"]?.toString() ?? '0'),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 16), // 确保底部有一定留白
-                                      ],
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -248,14 +253,14 @@ class _MerchantPageState extends State<MerchantPage> {
                         ? SliverToBoxAdapter(
                             child: Center(child: Text('暂无商品')),
                           )
-                        : SliverPadding( // 添加SliverPadding来控制边距
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), // 参考shop.dart
+                        : SliverPadding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             sliver: SliverGrid(
                               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 2, // 两列布局
+                                crossAxisCount: 2,
                                 crossAxisSpacing: 8,
                                 mainAxisSpacing: 8,
-                                childAspectRatio: 0.6, // 调整为0.6，避免底部溢出，符合用户反馈
+                                childAspectRatio: 0.7, // 调整比例，给更多空间
                               ),
                               delegate: SliverChildBuilderDelegate(
                                 (context, index) {
