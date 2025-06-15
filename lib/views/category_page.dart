@@ -34,13 +34,9 @@ class _CategoryPageState extends State<CategoryPage> {
         '/api/product-classification/get-all-categories',
       );
       final List<dynamic> dataList = rawData as List<dynamic>;
-      final fetched =
-          dataList
-              .map(
-                (e) =>
-                    ProductClassification.fromJson(e as Map<String, dynamic>),
-              )
-              .toList();
+      final fetched = dataList
+          .map((e) => ProductClassification.fromJson(e as Map<String, dynamic>))
+          .toList();
       setState(() {
         _categories = [ProductClassification(id: 0, name: '全部'), ...fetched];
         _isLoading = false;
@@ -76,7 +72,6 @@ class _CategoryPageState extends State<CategoryPage> {
     setState(() {
       _selectedIndex = index;
       if (index == 0) {
-        // “全部”
         _futureProducts = _fetchAllProducts();
       } else {
         final typeId = _categories[index].id;
@@ -88,7 +83,7 @@ class _CategoryPageState extends State<CategoryPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // AppBar: 与 ShopPage 保持一致
+      // 与 ShopPage 保持一致的 AppBar
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(60),
         child: AppBar(
@@ -102,13 +97,11 @@ class _CategoryPageState extends State<CategoryPage> {
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Row(
               children: [
-                // 返回箭头
                 IconButton(
                   icon: const Icon(Icons.arrow_back, color: Colors.black),
                   onPressed: () => Navigator.pop(context),
                 ),
                 const SizedBox(width: 8),
-                // 搜索图标 + 搜索框
                 const Icon(Icons.search, color: Colors.black),
                 const SizedBox(width: 8),
                 const Expanded(
@@ -120,7 +113,6 @@ class _CategoryPageState extends State<CategoryPage> {
                     ),
                   ),
                 ),
-                // 购物车图标
                 IconButton(
                   icon: Icon(Icons.shopping_cart, color: Colors.grey.shade800),
                   onPressed: () {
@@ -135,126 +127,122 @@ class _CategoryPageState extends State<CategoryPage> {
           ),
         ),
       ),
-      body:
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : _errorMsg != null
-              ? Center(child: Text(_errorMsg!))
-              : Row(
-                children: [
-                  // 左侧导航栏
-                  Container(
-                    width: 85,
-                    color: Colors.grey.shade200,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: List.generate(_categories.length, (index) {
-                        final bool isSelected = index == _selectedIndex;
-                        return GestureDetector(
-                          onTap: () => _onCategoryTap(index),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            color: Colors.transparent,
-                            child: Row(
-                              children: [
-                                // 选中时显示红色竖线
-                                Container(
-                                  width: 4,
-                                  height: 24,
-                                  color:
-                                      isSelected
-                                          ? Colors.red
-                                          : Colors.transparent,
+
+      // SafeArea + Row with stretch + bottom padding on GridView
+      body: SafeArea(
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _errorMsg != null
+            ? Center(child: Text(_errorMsg!))
+            : Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // 左侧分类导航
+            Container(
+              width: 85,
+              color: Colors.grey.shade200,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: List.generate(_categories.length, (index) {
+                  final bool isSelected = index == _selectedIndex;
+                  return GestureDetector(
+                    onTap: () => _onCategoryTap(index),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 4,
+                            height: 24,
+                            color: isSelected
+                                ? Colors.red
+                                : Colors.transparent,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Center(
+                              child: Text(
+                                _categories[index].name,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: isSelected
+                                      ? Colors.red
+                                      : Colors.black,
+                                  fontSize: 14,
                                 ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Center(
-                                    child: Text(
-                                      _categories[index].name,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        color:
-                                            isSelected
-                                                ? Colors.red
-                                                : Colors.black,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
+                              ),
                             ),
                           ),
-                        );
-                      }),
-                    ),
-                  ),
-
-                  // 右侧商品展示
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      child: FutureBuilder<List<ProductVO>>(
-                        future: _futureProducts,
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState !=
-                              ConnectionState.done) {
-                            return const Center(
-                              child: CircularProgressIndicator(),
-                            );
-                          }
-                          if (snapshot.hasError) {
-                            return Center(
-                              child: Text('加载失败：${snapshot.error}'),
-                            );
-                          }
-                          final products = snapshot.data ?? [];
-                          if (products.isEmpty) {
-                            return const Center(child: Text('暂无商品'));
-                          }
-                          return GridView.builder(
-                            gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 2,
-                                  crossAxisSpacing: 8,
-                                  mainAxisSpacing: 8,
-                                  childAspectRatio: 0.65,
-                                ),
-                            itemCount: products.length,
-                            itemBuilder: (context, index) {
-                              final item = products[index];
-                              return ProductCard(
-                                image: item.image,
-                                name: item.name,
-                                activity: item.activity,
-                                price: item.price,
-                                payers: item.payers,
-                                nameMaxLines: 1, // 在分类页强制名称显示一行
-                                onTap: () {
-                                  // 点击跳转到商品详情页
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder:
-                                          (c) =>
-                                              ProductDetailPage(product: item),
-                                    ),
-                                  );
-                                },
-                              );
-                            },
-                          );
-                        },
+                        ],
                       ),
                     ),
-                  ),
-                ],
+                  );
+                }),
               ),
+            ),
+
+            // 右侧商品区域
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: FutureBuilder<List<ProductVO>>(
+                  future: _futureProducts,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState !=
+                        ConnectionState.done) {
+                      return const Center(
+                          child: CircularProgressIndicator());
+                    }
+                    if (snapshot.hasError) {
+                      return Center(
+                          child: Text('加载失败：${snapshot.error}'));
+                    }
+                    final products = snapshot.data ?? [];
+                    if (products.isEmpty) {
+                      return const Center(child: Text('暂无商品'));
+                    }
+                    return LayoutBuilder(
+                      builder: (context, constraints) {
+                        return GridView.builder(
+                          padding: const EdgeInsets.only(bottom: 16),
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 8,
+                            mainAxisSpacing: 8,
+                            childAspectRatio: 0.6,
+                          ),
+                          itemCount: products.length,
+                          itemBuilder: (context, index) {
+                            final item = products[index];
+                            return ProductCard(
+                              image: item.image,
+                              name: item.name,
+                              activity: item.activity,
+                              price: item.price,
+                              payers: item.payers,
+                              nameMaxLines: 1,
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (c) => ProductDetailPage(product: item),
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
