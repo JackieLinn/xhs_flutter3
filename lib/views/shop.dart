@@ -7,6 +7,7 @@ import 'cart_page.dart';
 import 'category_page.dart';
 import 'orders_page.dart';
 import 'store_page.dart';
+import 'product_detail_page.dart';
 
 class ShopPage extends StatefulWidget {
   const ShopPage({super.key});
@@ -244,7 +245,12 @@ class _ShopPageState extends State<ShopPage> {
                               price: item.price, // 传 double
                               payers: item.payers,
                               onTap: () {
-                                // 点击跳转详情或其他操作
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (c) => ProductDetailPage(product: item),
+                                  ),
+                                );
                               },
                             );
                           }, childCount: products.length),
@@ -286,7 +292,7 @@ class _ShopPageState extends State<ShopPage> {
     );
   }
 
-  /// 弹出“更多”侧面板（ModalBottomSheet）
+  /// 弹出"更多"侧面板（ModalBottomSheet）
   void _showMorePanel(BuildContext context) {
     showModalBottomSheet(
       context: context,
