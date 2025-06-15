@@ -1,6 +1,5 @@
-// views/single_order_page.dart
-
 import 'package:flutter/material.dart';
+import 'package:xhs/models/payment_ro.dart';
 import '../models/orders_create_ro.dart';
 import '../models/delivery_address_vo.dart';
 import '../models/delivery_address_save_ro.dart';
@@ -28,10 +27,15 @@ class SingleOrderPage extends StatefulWidget {
 class _SingleOrderPageState extends State<SingleOrderPage> {
   bool _isLoading = false;
   String? _errorMessage;
+
   int? _createdOrderId;
   late int _uid;
+
   List<DeliveryAddressVO> _addresses = [];
   int? _selectedAddressId;
+  DeliveryAddressVO? _selectedAddress;
+
+  int _payType = 1; // 1: 支付宝, 2: 微信
 
   @override
   void initState() {
@@ -40,178 +44,169 @@ class _SingleOrderPageState extends State<SingleOrderPage> {
   }
 
   Future<void> _initData() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
     try {
-      // 取出 uid
       final auth = await ApiService.getAuthObject();
       _uid = int.parse(auth['id'] as String);
 
-      // 1) 创建订单
-      final orderData = await ApiService.postApi(
+      final resp = await ApiService.postApi(
         '/api/orders/create-orders',
         data: widget.order.toJson(),
       );
-      if (orderData is num) {
-        _createdOrderId = orderData.toInt();
-      } else if (orderData is String) {
-        _createdOrderId = int.tryParse(orderData);
+      if (resp is num) {
+        _createdOrderId = resp.toInt();
+      } else if (resp is String) {
+        _createdOrderId = int.tryParse(resp);
       }
 
-      // 2) 查询用户所有地址
-      final addrList = await ApiService.getApi(
-        '/api/address/get-all-address',
-        queryParameters: {'uid': _uid.toString()},
-      );
-      if (addrList is List) {
-        _addresses = addrList
-            .map((e) => DeliveryAddressVO.fromJson(e as Map<String, dynamic>))
-            .toList();
-        if (_addresses.isNotEmpty) {
-          _selectedAddressId = _addresses.first.did;
-        }
-      }
+      await _loadAddresses();
     } catch (e) {
-      _errorMessage = e.toString();
+      setState(() {
+        _errorMessage = e.toString();
+      });
     } finally {
-      setState(() => _isLoading = false);
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
-  void _openAddressManager() {
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModalState) => AlertDialog(
-          title: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('地址管理'),
-              IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: () => Navigator.of(ctx).pop(),
-              ),
-            ],
-          ),
-          content: SizedBox(
-            width: double.maxFinite,
-            height: 300,
-            child: Column(
-              children: [
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: _addresses.length,
-                    itemBuilder: (c, i) {
-                      final addr = _addresses[i];
-                      return ListTile(
-                        title: Text('${addr.name}  ${addr.phone}'),
-                        subtitle: Text(addr.address),
-                        selected: addr.did == _selectedAddressId,
-                        onTap: () async {
-                          // 更新订单的地址
-                          if (_createdOrderId != null) {
-                            await ApiService.postApi(
-                              '/api/orders/update-address?oid=$_createdOrderId&did=${addr.did}',
-                            );
-                          }
-                          setModalState(() => _selectedAddressId = addr.did);
-                          Navigator.of(ctx).pop();
-                        },
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.edit),
-                              onPressed: () =>
-                                  _showEditAddress(addr, setModalState),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.delete),
-                              onPressed: () =>
-                                  _deleteAddress(addr.did, setModalState),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: () => _showAddAddress(setModalState),
-                  child: const Text('添加地址'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+  Future<void> _loadAddresses() async {
+    final data = await ApiService.getApi(
+      '/api/address/get-all-address',
+      queryParameters: {'uid': _uid.toString()},
     );
+
+    final list = <DeliveryAddressVO>[];
+    if (data is List && data.isNotEmpty) {
+      for (var item in data) {
+        try {
+          list.add(DeliveryAddressVO.fromJson(item as Map<String, dynamic>));
+        } catch (e) {
+          debugPrint('解析地址失败，已跳过：$e');
+        }
+      }
+    }
+
+    setState(() {
+      _addresses = list;
+      if (list.isNotEmpty) {
+        _selectedAddressId = list.first.id;
+        _selectedAddress = list.first;
+      } else {
+        _selectedAddressId = null;
+        _selectedAddress = null;
+      }
+    });
   }
 
-  void _showAddAddress(void Function(void Function()) setModalState) {
-    String name = '', phone = '', address = '';
+  Future<void> _loadSelectedAddress() async {
+    if (_selectedAddressId == null) return;
+
+    final data = await ApiService.getApi(
+      '/api/address/get-address-by-id',
+      queryParameters: {'did': _selectedAddressId.toString()},
+    );
+
+    if (data is Map<String, dynamic>) {
+      setState(() {
+        _selectedAddress = DeliveryAddressVO.fromJson(data);
+      });
+    }
+  }
+
+  Future<void> _openAddressManager() async {
+    if (_addresses.isEmpty) {
+      await _addNewAddress();
+      return;
+    }
+
+    await _loadAddresses();
+
+    final did = await showDialog<int>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _AddressManagerDialog(
+        addresses: _addresses,
+        uid: _uid,
+      ),
+    );
+
+    if (did != null && _createdOrderId != null) {
+      await ApiService.postApi(
+        '/api/orders/update-address?oid=$_createdOrderId&did=$did',
+      );
+
+      setState(() {
+        _selectedAddressId = did;
+      });
+
+      await _loadSelectedAddress();
+    }
+  }
+
+  Future<void> _addNewAddress() async {
+    String name = '', phone = '', addr = '';
     int sex = 1;
-    showDialog(
+
+    await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('添加地址'),
-        content: SingleChildScrollView(
-          child: Column(
-            children: [
-              TextField(
-                decoration: const InputDecoration(labelText: '姓名'),
-                onChanged: (v) => name = v,
-              ),
-              TextField(
-                decoration: const InputDecoration(labelText: '电话'),
-                onChanged: (v) => phone = v,
-              ),
-              TextField(
-                decoration: const InputDecoration(labelText: '地址'),
-                onChanged: (v) => address = v,
-              ),
-              DropdownButtonFormField<int>(
-                value: sex,
-                decoration: const InputDecoration(labelText: '性别'),
-                items: const [
-                  DropdownMenuItem(value: 1, child: Text('男')),
-                  DropdownMenuItem(value: 2, child: Text('女')),
-                ],
-                onChanged: (v) => sex = v!,
-              ),
-            ],
-          ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              decoration: const InputDecoration(labelText: '姓名'),
+              onChanged: (v) => name = v,
+            ),
+            TextField(
+              decoration: const InputDecoration(labelText: '电话'),
+              onChanged: (v) => phone = v,
+            ),
+            TextField(
+              decoration: const InputDecoration(labelText: '地址'),
+              onChanged: (v) => addr = v,
+            ),
+            DropdownButtonFormField<int>(
+              value: sex,
+              decoration: const InputDecoration(labelText: '性别'),
+              items: const [
+                DropdownMenuItem(value: 1, child: Text('男')),
+                DropdownMenuItem(value: 2, child: Text('女')),
+              ],
+              onChanged: (v) => sex = v!,
+            ),
+          ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
+            onPressed: () => Navigator.pop(ctx),
             child: const Text('取消'),
           ),
           TextButton(
             onPressed: () async {
+              if (name.isEmpty || phone.isEmpty || addr.isEmpty) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(content: Text('请填写完整信息')),
+                );
+                return;
+              }
+
               final ro = DeliveryAddressSaveRO(
                 name: name,
                 sex: sex,
                 phone: phone,
-                address: address,
+                address: addr,
                 uid: _uid,
               );
-              final data = await ApiService.postApi(
-                '/api/address/save-address',
-                data: ro.toJson(),
-              );
-              if (data is num) {
-                final newDid = data.toInt();
-                setModalState(() {
-                  _addresses.add(DeliveryAddressVO(
-                    did: newDid,
-                    name: name,
-                    sex: sex,
-                    phone: phone,
-                    address: address,
-                  ));
-                });
-              }
-              Navigator.of(ctx).pop();
+
+              await ApiService.postApi('/api/address/save-address', data: ro.toJson());
+              Navigator.pop(ctx);
+              await _loadAddresses();
             },
             child: const Text('保存'),
           ),
@@ -220,102 +215,150 @@ class _SingleOrderPageState extends State<SingleOrderPage> {
     );
   }
 
-  void _showEditAddress(
-      DeliveryAddressVO addr, void Function(void Function()) setModalState) {
-    String name = addr.name, phone = addr.phone, address = addr.address;
-    int sex = addr.sex;
-    final ctrName = TextEditingController(text: name);
-    final ctrPhone = TextEditingController(text: phone);
-    final ctrAddr = TextEditingController(text: address);
+  void _onPay() async {
+    if (_selectedAddress == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('请先选择收货地址')),
+      );
+      return;
+    }
 
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('编辑地址'),
-        content: SingleChildScrollView(
-          child: Column(
-            children: [
-              TextField(
-                controller: ctrName,
-                decoration: const InputDecoration(labelText: '姓名'),
-                onChanged: (v) => name = v,
-              ),
-              TextField(
-                controller: ctrPhone,
-                decoration: const InputDecoration(labelText: '电话'),
-                onChanged: (v) => phone = v,
-              ),
-              TextField(
-                controller: ctrAddr,
-                decoration: const InputDecoration(labelText: '地址'),
-                onChanged: (v) => address = v,
-              ),
-              DropdownButtonFormField<int>(
-                value: sex,
-                decoration: const InputDecoration(labelText: '性别'),
-                items: const [
-                  DropdownMenuItem(value: 1, child: Text('男')),
-                  DropdownMenuItem(value: 2, child: Text('女')),
-                ],
-                onChanged: (v) => sex = v!,
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('取消'),
-          ),
-          TextButton(
-            onPressed: () async {
-              final ro = DeliveryAddressUpdateRO(
-                did: addr.did,
-                name: name,
-                sex: sex,
-                phone: phone,
-                address: address,
-                uid: _uid,
-              );
-              await ApiService.postApi(
-                '/api/address/update-address',
-                data: ro.toJson(),
-              );
-              setModalState(() {
-                final idx = _addresses.indexWhere((e) => e.did == addr.did);
-                _addresses[idx] = DeliveryAddressVO(
-                  did: addr.did,
-                  name: name,
-                  sex: sex,
-                  phone: phone,
-                  address: address,
-                );
-              });
-              Navigator.of(ctx).pop();
-            },
-            child: const Text('更新'),
-          ),
-        ],
+    final parentContext = context;
+
+    await showModalBottomSheet(
+      context: parentContext,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
+      backgroundColor: Colors.white,
+      builder: (sheetContext) {
+        int tempPayType = _payType;
+        return StatefulBuilder(
+          builder: (innerContext, setState) {
+            return Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setState(() => tempPayType = 1),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                margin: const EdgeInsets.symmetric(horizontal: 8),
+                                child: Image.asset(
+                                  'images/alipay.png',
+                                  width: 360,
+                                  height: 96,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Radio<int>(
+                                value: 1,
+                                groupValue: tempPayType,
+                                onChanged: (v) => setState(() => tempPayType = v!),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 24),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setState(() => tempPayType = 2),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                margin: const EdgeInsets.symmetric(horizontal: 8),
+                                child: Image.asset(
+                                  'images/wechat.png',
+                                  width: 360,
+                                  height: 96,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Radio<int>(
+                                value: 2,
+                                groupValue: tempPayType,
+                                onChanged: (v) => setState(() => tempPayType = v!),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(100, 44),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(22),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: const Text('立即支付'),
+                      onPressed: () async {
+                        Navigator.pop(sheetContext);
+                        setState(() {
+                          _payType = tempPayType;
+                        });
+                        String? errorMsg;
+                        try {
+                          final ro = PaymentRO(uid: _uid, oid: _createdOrderId!);
+                          await ApiService.postApi(
+                            '/api/orders/payment',
+                            data: ro.toJson(),
+                          );
+                          if (!mounted) return;
+                          await showDialog(
+                            context: parentContext,
+                            builder: (ctx2) => AlertDialog(
+                              title: const Text('支付成功'),
+                              content: const Text('您的订单已支付成功！'),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(ctx2).pop(),
+                                  child: const Text('确定'),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (!mounted) return;
+                          Navigator.of(parentContext).pushNamedAndRemoveUntil(
+                            '/home',
+                                (route) => false,
+                            arguments: {'initialIndex': 3},
+                          );
+                          return;
+                        } catch (e) {
+                          errorMsg = '支付失败：$e';
+                        }
+                        if (errorMsg != null && mounted) {
+                          ScaffoldMessenger.of(parentContext).showSnackBar(
+                            SnackBar(content: Text(errorMsg)),
+                          );
+                        }
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
-  }
-
-  Future<void> _deleteAddress(
-      int did, void Function(void Function()) setModalState) async {
-    await ApiService.postApi(
-      '/api/address/remove-address',
-      data: {'did': did},
-    );
-    setModalState(() {
-      _addresses.removeWhere((e) => e.did == did);
-      if (_selectedAddressId == did) {
-        _selectedAddressId = _addresses.isNotEmpty ? _addresses.first.did : null;
-      }
-    });
-  }
-
-  void _onPay() {
-    // TODO: 用 _createdOrderId 和 _selectedAddressId 调用支付逻辑
   }
 
   @override
@@ -328,11 +371,36 @@ class _SingleOrderPageState extends State<SingleOrderPage> {
 
     if (_errorMessage != null) {
       return Scaffold(
-        appBar: AppBar(
-          title: const Text('确认订单'),
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.black,
-          elevation: 1,
+        appBar: PreferredSize(
+          preferredSize: const Size.fromHeight(60),
+          child: AppBar(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.transparent,
+            elevation: 4,
+            shadowColor: Colors.grey,
+            automaticallyImplyLeading: false,
+            titleSpacing: 0,
+            title: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Colors.black),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+                const Expanded(
+                  child: Text(
+                    '确认订单',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 60),
+              ],
+            ),
+          ),
         ),
         body: Center(
           child: Column(
@@ -377,10 +445,7 @@ class _SingleOrderPageState extends State<SingleOrderPage> {
                   ),
                 ),
               ),
-              IconButton(
-                icon: const Icon(Icons.more_horiz, color: Colors.black),
-                onPressed: () {},
-              ),
+              const SizedBox(width: 60),
             ],
           ),
         ),
@@ -391,38 +456,43 @@ class _SingleOrderPageState extends State<SingleOrderPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             GestureDetector(
-              onTap: _addresses.isEmpty ? null : _openAddressManager,
-              child: _addresses.isEmpty
-                  ? const Text(
-                '暂无地址信息，请先添加地址',
-                style: TextStyle(fontSize: 16, color: Colors.red),
-              )
-                  : Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${_addresses.first.name}  ${_addresses.first.phone}',
-
-                        style: const TextStyle(fontSize: 16),
+              onTap: _openAddressManager,
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: _selectedAddress == null
+                    ? const Row(
+                  children: [
+                    Icon(Icons.add_location_alt, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('添加收货地址', style: TextStyle(color: Colors.red)),
+                  ],
+                )
+                    : Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${_selectedAddress!.name}${_selectedAddress!.sex == 1 ? '先生' : '女士'}  ${_selectedAddress!.phone}',
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(_selectedAddress!.address),
+                        ],
                       ),
-                      Text(
-                        _addresses.first.address,
-                        style: const TextStyle(fontSize: 16),
-                      ),
-                    ],
-                  ),
-                  const Icon(Icons.arrow_forward_ios),
-                ],
+                    ),
+                    const Icon(Icons.arrow_forward_ios, size: 16),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 16),
-            const Text(
-              '商品信息：',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
+            const SizedBox(height: 24),
+            const Text('商品信息：', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             Row(
               children: [
@@ -446,23 +516,16 @@ class _SingleOrderPageState extends State<SingleOrderPage> {
                         widget.productName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 16),
                       ),
                       const SizedBox(height: 8),
-                      Text(
-                        widget.productAttributes.join(', '),
-                        style: const TextStyle(fontSize: 14),
-                      ),
+                      Text(widget.productAttributes.join(', ')),
                       const SizedBox(height: 8),
                       Text(
                         '¥${widget.order.price.toStringAsFixed(2)}',
-                        style: const TextStyle(fontSize: 16, color: Colors.red),
+                        style: const TextStyle(color: Colors.red),
                       ),
                       const SizedBox(height: 8),
-                      Text(
-                        '数量：${widget.order.quantity}',
-                        style: const TextStyle(fontSize: 14),
-                      ),
+                      Text('数量：${widget.order.quantity}'),
                     ],
                   ),
                 ),
@@ -475,15 +538,12 @@ class _SingleOrderPageState extends State<SingleOrderPage> {
               children: [
                 Text(
                   '总价：¥${(widget.order.price * widget.order.quantity).toStringAsFixed(2)}',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 ElevatedButton(
-                  onPressed: (_selectedAddressId == null) ? null : _onPay,
+                  onPressed: _selectedAddress == null ? null : _onPay,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
+                    backgroundColor: _selectedAddress == null ? Colors.grey : Colors.red,
                     foregroundColor: Colors.white,
                     minimumSize: const Size(100, 40),
                     shape: RoundedRectangleBorder(
@@ -494,6 +554,281 @@ class _SingleOrderPageState extends State<SingleOrderPage> {
                   child: const Text('立即支付'),
                 ),
               ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AddressManagerDialog extends StatefulWidget {
+  final List<DeliveryAddressVO> addresses;
+  final int uid;
+
+  const _AddressManagerDialog({
+    required this.addresses,
+    required this.uid,
+    Key? key,
+  }) : super(key: key);
+
+  @override
+  State<_AddressManagerDialog> createState() => _AddressManagerDialogState();
+}
+
+class _AddressManagerDialogState extends State<_AddressManagerDialog> {
+  late List<DeliveryAddressVO> _list;
+
+  @override
+  void initState() {
+    super.initState();
+    _list = List.of(widget.addresses);
+  }
+
+  Future<void> _reload() async {
+    final data = await ApiService.getApi(
+      '/api/address/get-all-address',
+      queryParameters: {'uid': widget.uid.toString()},
+    );
+
+    if (data is List && data.isNotEmpty) {
+      setState(() {
+        _list = data.map((e) => DeliveryAddressVO.fromJson(e)).toList();
+      });
+    } else {
+      setState(() => _list = []);
+    }
+  }
+
+  Future<void> _add() async {
+    String name = '', phone = '', addr = '';
+    int sex = 1;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('添加地址'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              decoration: const InputDecoration(labelText: '姓名'),
+              onChanged: (v) => name = v,
+            ),
+            TextField(
+              decoration: const InputDecoration(labelText: '电话'),
+              onChanged: (v) => phone = v,
+            ),
+            TextField(
+              decoration: const InputDecoration(labelText: '地址'),
+              onChanged: (v) => addr = v,
+            ),
+            DropdownButtonFormField<int>(
+              value: sex,
+              decoration: const InputDecoration(labelText: '性别'),
+              items: const [
+                DropdownMenuItem(value: 1, child: Text('男')),
+                DropdownMenuItem(value: 2, child: Text('女')),
+              ],
+              onChanged: (v) => sex = v!,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () async {
+              if (name.isEmpty || phone.isEmpty || addr.isEmpty) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(content: Text('请填写完整信息')),
+                );
+                return;
+              }
+
+              final ro = DeliveryAddressSaveRO(
+                name: name,
+                sex: sex,
+                phone: phone,
+                address: addr,
+                uid: widget.uid,
+              );
+
+              await ApiService.postApi('/api/address/save-address', data: ro.toJson());
+              Navigator.pop(ctx);
+              await _reload();
+            },
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _edit(DeliveryAddressVO a) async {
+    String name = a.name, phone = a.phone, addr = a.address;
+    int sex = a.sex;
+
+    final cN = TextEditingController(text: name);
+    final cP = TextEditingController(text: phone);
+    final cA = TextEditingController(text: addr);
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('编辑地址'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: cN,
+              decoration: const InputDecoration(labelText: '姓名'),
+              onChanged: (v) => name = v,
+            ),
+            TextField(
+              controller: cP,
+              decoration: const InputDecoration(labelText: '电话'),
+              onChanged: (v) => phone = v,
+            ),
+            TextField(
+              controller: cA,
+              decoration: const InputDecoration(labelText: '地址'),
+              onChanged: (v) => addr = v,
+            ),
+            DropdownButtonFormField<int>(
+              value: sex,
+              decoration: const InputDecoration(labelText: '性别'),
+              items: const [
+                DropdownMenuItem(value: 1, child: Text('男')),
+                DropdownMenuItem(value: 2, child: Text('女')),
+              ],
+              onChanged: (v) => sex = v!,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () async {
+              if (name.isEmpty || phone.isEmpty || addr.isEmpty) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(content: Text('请填写完整信息')),
+                );
+                return;
+              }
+
+              final ro = DeliveryAddressUpdateRO(
+                did: a.id,
+                name: name,
+                sex: sex,
+                phone: phone,
+                address: addr,
+                uid: widget.uid,
+              );
+
+              await ApiService.postApi('/api/address/update-address', data: ro.toJson());
+              Navigator.pop(ctx);
+              await _reload();
+            },
+            child: const Text('更新'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _delete(int did) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('确认删除'),
+        content: const Text('确定要删除这个地址吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await ApiService.postApi('/api/address/remove-address?did=$did');
+      await _reload();
+    }
+  }
+
+  @override
+  Widget build(BuildContext c) {
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  '地址管理',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(c),
+                ),
+              ],
+            ),
+            const Divider(height: 1),
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(c).size.height * .5,
+              ),
+              child: ListView.separated(
+                itemCount: _list.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (_, i) {
+                  final a = _list[i];
+                  return ListTile(
+                    title: Text('${a.name}${a.sex == 1 ? '先生' : '女士'}  ${a.phone}'),
+                    subtitle: Text(a.address),
+                    onTap: () => Navigator.pop(c, a.id),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit, size: 20),
+                          onPressed: () => _edit(a),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete, size: 20),
+                          onPressed: () => _delete(a.id),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.add),
+              label: const Text('添加地址'),
+              onPressed: _add,
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size.fromHeight(40),
+              ),
             ),
           ],
         ),

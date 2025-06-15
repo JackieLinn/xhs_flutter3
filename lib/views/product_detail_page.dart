@@ -43,10 +43,10 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   int _tabIndex = 0;
   final List<String> _tabs = ['商品', '详情', '推荐'];
 
-  // 是否显示“回到顶部”按钮
+  // 是否显示"回到顶部"按钮
   bool _showBackToTop = false;
 
-  // 用于标记“图文详情”和“推荐商品”分隔条的位置
+  // 用于标记"图文详情"和"推荐商品"分隔条的位置
   final GlobalKey _detailDividerKey = GlobalKey();
   final GlobalKey _recommendDividerKey = GlobalKey();
 
@@ -54,6 +54,14 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   int _lastQty = 1;
   double _lastUnitPrice = 0.0;
   List<int> _lastSelectedOptionIds = [];
+
+  // Search related states and controllers
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
+  List<ProductVO> _searchResults = [];
+  bool _showSearchResults = false;
+  String? _searchErrorMsg;
+  bool _isSearching = false;
 
   @override
   void initState() {
@@ -84,6 +92,9 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
         _merchant = m;
       });
     });
+
+    // Search listeners
+    _searchFocusNode.addListener(_onFocusChanged);
   }
 
   @override
@@ -91,7 +102,54 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     _autoPlayTimer?.cancel();
     _pageController.dispose();
     _scrollController.dispose(); // 一定要 dispose
+    _searchController.dispose();
+    _searchFocusNode.removeListener(_onFocusChanged);
+    _searchFocusNode.dispose();
     super.dispose();
+  }
+
+  void _onFocusChanged() {
+    setState(() {
+      _showSearchResults = _searchFocusNode.hasFocus && (_searchResults.isNotEmpty || _isSearching || _searchErrorMsg != null || _searchController.text.isNotEmpty);
+    });
+  }
+
+  void _submitSearch(String keyword) {
+    if (keyword.isEmpty) {
+      setState(() {
+        _searchResults = [];
+        _searchErrorMsg = null;
+      });
+    } else {
+      _performSearch(keyword);
+    }
+  }
+
+  Future<void> _performSearch(String keyword) async {
+    setState(() {
+      _isSearching = true;
+      _searchErrorMsg = null;
+      _showSearchResults = true;
+    });
+    try {
+      final rawData = await ApiService.getApi(
+        '/api/product/search',
+        queryParameters: {'keyword': keyword},
+      );
+      final List<dynamic> dataList = rawData as List<dynamic>;
+      setState(() {
+        _searchResults = dataList.map((e) => ProductVO.fromJson(e as Map<String, dynamic>)).toList();
+        _isSearching = false;
+        _showSearchResults = true; // Always show results after search
+      });
+    } catch (e) {
+      setState(() {
+        _searchErrorMsg = '搜索失败: $e';
+        _searchResults = [];
+        _isSearching = false;
+        _showSearchResults = true; // Always show results after search
+      });
+    }
   }
 
   /// 异步获取商家信息，接口：/api/merchant/get-merchant-by-pid?pid=xxx
@@ -113,13 +171,12 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     return ProductSelectionVO.fromJson(rawData as Map<String, dynamic>);
   }
 
-  /// 滚动监听：计算“图文详情”和“推荐商品”分隔条相对于屏幕的位置，
-  /// 来决定当前应该高亮哪个子导航，以及是否显示“回到顶部”按钮。
+  /// 滚动监听：计算"图文详情"和"推荐商品"分隔条的位置，
+  /// 来决定当前应该高亮哪个子导航，以及是否显示"回到顶部"按钮。
   void _onScroll() {
     const double searchBarHeight = 56.0;
     const double tabBarHeight = 48.0;
-    final double pinnedBarHeight =
-        MediaQuery.of(context).padding.top + searchBarHeight + tabBarHeight;
+    final double pinnedBarHeight = MediaQuery.of(context).padding.top + searchBarHeight + tabBarHeight;
 
     double _widgetGlobalY(GlobalKey key) {
       final renderObject = key.currentContext?.findRenderObject();
@@ -163,24 +220,13 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
       final detailBox = _detailDividerKey.currentContext?.findRenderObject();
       if (detailBox is RenderBox) {
         final detailOffset = detailBox.localToGlobal(Offset.zero).dy;
-        targetOffset =
-            _scrollController.offset +
-            (detailOffset -
-                (MediaQuery.of(context).padding.top +
-                    searchBarHeight +
-                    tabBarHeight));
+        targetOffset = _scrollController.offset + (detailOffset - (MediaQuery.of(context).padding.top + searchBarHeight + tabBarHeight));
       }
     } else {
-      final recommendBox =
-          _recommendDividerKey.currentContext?.findRenderObject();
+      final recommendBox = _recommendDividerKey.currentContext?.findRenderObject();
       if (recommendBox is RenderBox) {
         final recOffset = recommendBox.localToGlobal(Offset.zero).dy;
-        targetOffset =
-            _scrollController.offset +
-            (recOffset -
-                (MediaQuery.of(context).padding.top +
-                    searchBarHeight +
-                    tabBarHeight));
+        targetOffset = _scrollController.offset + (recOffset - (MediaQuery.of(context).padding.top + searchBarHeight + tabBarHeight));
       }
     }
 
@@ -195,7 +241,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     );
   }
 
-  /// 点击“回到顶部”按钮时，滚动到最顶部
+  /// 点击"回到顶部"按钮时，滚动到最顶部
   void _scrollToTop() {
     _scrollController.animateTo(
       0,
@@ -267,7 +313,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
               ),
               child: Column(
                 children: [
-                  // 顶部“拖拽小拉手”
+                  // 顶部"拖拽小拉手"
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     child: Container(
@@ -280,7 +326,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                     ),
                   ),
 
-                  // 右上角“X”关闭按钮
+                  // 右上角"X"关闭按钮
                   Align(
                     alignment: Alignment.centerRight,
                     child: IconButton(
@@ -361,31 +407,24 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                         // 同时初始化外部跟踪变量
                         _lastQty = qty;
                         _lastUnitPrice = unitPrice;
-                        _lastSelectedOptionIds =
-                            selectedOptions.values.map((o) => o.id).toList();
+                        _lastSelectedOptionIds = selectedOptions.values.map((o) => o.id).toList();
 
                         return StatefulBuilder(
                           builder: (context, setState) {
                             // Helper: 组合所有选中的 optionId 列表
                             List<int> getSelectedOptionIds() {
-                              return selectedOptions.values
-                                  .map((opt) => opt.id)
-                                  .toList();
+                              return selectedOptions.values.map((opt) => opt.id).toList();
                             }
 
                             // Helper: 当某个分类选项被点击时，调用后端 calculate-price 接口
                             Future<void> _refreshUnitPrice() async {
                               try {
-                                final List<int> selectedIds =
-                                    getSelectedOptionIds();
+                                final List<int> selectedIds = getSelectedOptionIds();
                                 final String joinedIds = selectedIds.join(',');
 
                                 final raw = await ApiService.getApi(
                                   '/api/variant/calculate-price',
-                                  queryParameters: {
-                                    'pid': widget.product.id.toString(),
-                                    'optionIds': joinedIds,
-                                  },
+                                  queryParameters: {'pid': widget.product.id.toString(), 'optionIds': joinedIds},
                                 );
                                 final double newPrice = (raw as num).toDouble();
                                 setState(() {
@@ -420,8 +459,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                                   const SizedBox(height: 16),
 
                                   // 遍历所有分类
-                                  for (var categoryMap
-                                      in selection.categories) ...[
+                                  for (var categoryMap in selection.categories) ...[
                                     for (var entry in categoryMap.entries) ...[
                                       // 分类名称
                                       Text(
@@ -437,62 +475,42 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                                       Wrap(
                                         spacing: 8,
                                         runSpacing: 8,
-                                        children:
-                                            entry.value.map((opt) {
-                                              final bool isSelected =
-                                                  (selectedOptions[entry.key]
-                                                          ?.id ==
-                                                      opt.id);
-                                              return GestureDetector(
-                                                onTap: () async {
-                                                  if (!isSelected) {
-                                                    setState(() {
-                                                      selectedOptions[entry
-                                                              .key] =
-                                                          opt;
-                                                    });
-                                                    await _refreshUnitPrice();
+                                        children: entry.value.map((opt) {
+                                          final bool isSelected = (selectedOptions[entry.key]?.id == opt.id);
+                                          return GestureDetector(
+                                            onTap: () async {
+                                              if (!isSelected) {
+                                                setState(() {
+                                                  selectedOptions[entry.key] = opt;
+                                                });
+                                                await _refreshUnitPrice();
 
-                                                    // 每次选中改变，都更新外部跟踪选项列表
-                                                    _lastSelectedOptionIds =
-                                                        getSelectedOptionIds();
-                                                  }
-                                                },
-                                                child: Container(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 12,
-                                                        vertical: 6,
-                                                      ),
-                                                  decoration: BoxDecoration(
-                                                    color:
-                                                        isSelected
-                                                            ? Colors.red
-                                                            : Colors.white,
-                                                    border: Border.all(
-                                                      color:
-                                                          isSelected
-                                                              ? Colors.red
-                                                              : Colors.grey,
-                                                    ),
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          4,
-                                                        ),
-                                                  ),
-                                                  child: Text(
-                                                    opt.content,
-                                                    style: TextStyle(
-                                                      fontSize: 14,
-                                                      color:
-                                                          isSelected
-                                                              ? Colors.white
-                                                              : Colors.black,
-                                                    ),
-                                                  ),
+                                                // 每次选中改变，都更新外部跟踪选项列表
+                                                _lastSelectedOptionIds = getSelectedOptionIds();
+                                              }
+                                            },
+                                            child: Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                horizontal: 12,
+                                                vertical: 6,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: isSelected ? Colors.red : Colors.white,
+                                                border: Border.all(
+                                                  color: isSelected ? Colors.red : Colors.grey,
                                                 ),
-                                              );
-                                            }).toList(),
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                              child: Text(
+                                                opt.content,
+                                                style: TextStyle(
+                                                  fontSize: 14,
+                                                  color: isSelected ? Colors.white : Colors.black,
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        }).toList(),
                                       ),
                                       const SizedBox(height: 16),
                                     ],
@@ -527,9 +545,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                                             border: Border.all(
                                               color: Colors.grey,
                                             ),
-                                            borderRadius: BorderRadius.circular(
-                                              4,
-                                            ),
+                                            borderRadius: BorderRadius.circular(4),
                                           ),
                                           child: const Icon(
                                             Icons.remove,
@@ -563,9 +579,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                                             border: Border.all(
                                               color: Colors.grey,
                                             ),
-                                            borderRadius: BorderRadius.circular(
-                                              4,
-                                            ),
+                                            borderRadius: BorderRadius.circular(4),
                                           ),
                                           child: const Icon(
                                             Icons.add,
@@ -585,7 +599,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                     ),
                   ),
 
-                  // 底部“确定”按钮（固定区域），需要传递 CartListOneRO 给 SingleCartPage
+                  // 底部"确定"按钮（固定区域），需要传递 CartListOneRO 给 SingleCartPage
                   Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 20.0,
@@ -609,8 +623,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                           // 如果未登录，可自行决定提示或跳到登录页
                           return;
                         }
-                        final authObj =
-                            jsonDecode(rawAuth) as Map<String, dynamic>;
+                        final authObj = jsonDecode(rawAuth) as Map<String, dynamic>;
                         final int uid = int.parse(authObj['id'] as String);
 
                         // pid = 当前商品ID
@@ -662,8 +675,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
           FutureBuilder<List<dynamic>>(
             future: _futureData,
             builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting ||
-                  _futureData == null) {
+              if (snapshot.connectionState == ConnectionState.waiting || _futureData == null) {
                 return const Center(child: CircularProgressIndicator());
               }
               if (snapshot.hasError) {
@@ -687,19 +699,10 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                     collapsedHeight: minExtent,
                     automaticallyImplyLeading: false,
                     flexibleSpace: LayoutBuilder(
-                      builder: (
-                        BuildContext context,
-                        BoxConstraints constraints,
-                      ) {
+                      builder: (BuildContext context, BoxConstraints constraints) {
                         final double currentExtent = constraints.maxHeight;
-                        final double delta = (maxExtent - currentExtent).clamp(
-                          0.0,
-                          maxExtent,
-                        );
-                        final double fade = (delta / carouselHeight).clamp(
-                          0.0,
-                          1.0,
-                        );
+                        final double delta = (maxExtent - currentExtent).clamp(0.0, maxExtent);
+                        final double fade = (delta / carouselHeight).clamp(0.0, 1.0);
 
                         return Stack(
                           fit: StackFit.expand,
@@ -727,13 +730,11 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                               left: 0,
                               right: 0,
                               child: Opacity(
-                                opacity: fade,
+                                opacity: fade, // 控制整个搜索栏/子导航栏的透明度
                                 child: Container(
-                                  height:
-                                      minExtent +
-                                      MediaQuery.of(context).padding.top,
+                                  height: minExtent + MediaQuery.of(context).padding.top,
                                   decoration: BoxDecoration(
-                                    color: Colors.white,
+                                    color: Colors.white, // 固定背景色
                                     boxShadow: [
                                       BoxShadow(
                                         color: Colors.grey.withOpacity(0.5),
@@ -750,53 +751,35 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                                         SizedBox(
                                           height: searchBarHeight,
                                           child: Padding(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 16.0,
-                                            ),
+                                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
                                             child: Row(
                                               children: [
                                                 IconButton(
-                                                  icon: const Icon(
-                                                    Icons.arrow_back,
-                                                    color: Colors.black,
-                                                  ),
-                                                  onPressed:
-                                                      () => Navigator.pop(
-                                                        context,
-                                                      ),
+                                                  icon: const Icon(Icons.arrow_back, color: Colors.black),
+                                                  onPressed: () => Navigator.pop(context),
                                                 ),
                                                 const SizedBox(width: 8),
-                                                const Icon(
-                                                  Icons.search,
-                                                  size: 20,
-                                                  color: Colors.grey,
-                                                ),
-                                                const SizedBox(width: 8),
-                                                const Expanded(
+                                                Expanded(
                                                   child: TextField(
-                                                    decoration: InputDecoration(
+                                                    controller: _searchController,
+                                                    focusNode: _searchFocusNode,
+                                                    decoration: const InputDecoration(
                                                       hintText: '搜你想要的商品',
-                                                      hintStyle: TextStyle(
-                                                        color: Colors.grey,
-                                                      ),
+                                                      hintStyle: TextStyle(color: Colors.grey),
                                                       border: InputBorder.none,
                                                       isDense: true,
                                                     ),
+                                                    onSubmitted: _submitSearch, // Trigger search on Enter
+                                                    textInputAction: TextInputAction.search, // Show search icon on keyboard
                                                   ),
                                                 ),
                                                 IconButton(
-                                                  icon: const Icon(
-                                                    Icons.star_border,
-                                                    color: Colors.black,
-                                                  ),
-                                                  onPressed: () {},
+                                                  icon: const Icon(Icons.star_border, color: Colors.black),
+                                                  onPressed: () {}, // Favorite button
                                                 ),
                                                 IconButton(
-                                                  icon: const Icon(
-                                                    Icons.share,
-                                                    color: Colors.black,
-                                                  ),
-                                                  onPressed: () {},
+                                                  icon: const Icon(Icons.share, color: Colors.black),
+                                                  onPressed: () {}, // Share button
                                                 ),
                                               ],
                                             ),
@@ -807,52 +790,33 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                                         SizedBox(
                                           height: tabBarHeight,
                                           child: Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.spaceEvenly,
-                                            children: List.generate(
-                                              _tabs.length,
-                                              (index) {
-                                                final bool selected =
-                                                    index == _tabIndex;
-                                                return GestureDetector(
-                                                  onTap: () => _onTabTap(index),
-                                                  child: Column(
-                                                    mainAxisAlignment:
-                                                        MainAxisAlignment
-                                                            .center,
-                                                    children: [
-                                                      Text(
-                                                        _tabs[index],
-                                                        style: TextStyle(
-                                                          fontSize: 16,
-                                                          color:
-                                                              selected
-                                                                  ? Colors.red
-                                                                  : Colors
-                                                                      .black,
-                                                          fontWeight:
-                                                              selected
-                                                                  ? FontWeight
-                                                                      .bold
-                                                                  : FontWeight
-                                                                      .normal,
-                                                        ),
+                                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                            children: List.generate(_tabs.length, (index) {
+                                              final bool selected = index == _tabIndex;
+                                              return GestureDetector(
+                                                onTap: () => _onTabTap(index),
+                                                child: Column(
+                                                  mainAxisAlignment: MainAxisAlignment.center,
+                                                  children: [
+                                                    Text(
+                                                      _tabs[index],
+                                                      style: TextStyle(
+                                                        fontSize: 16,
+                                                        color: selected ? Colors.red : Colors.black,
+                                                        fontWeight: selected ? FontWeight.bold : FontWeight.normal,
                                                       ),
-                                                      if (selected)
-                                                        Container(
-                                                          margin:
-                                                              const EdgeInsets.only(
-                                                                top: 4,
-                                                              ),
-                                                          height: 2,
-                                                          width: 40,
-                                                          color: Colors.red,
-                                                        ),
-                                                    ],
-                                                  ),
-                                                );
-                                              },
-                                            ),
+                                                    ),
+                                                    if (selected)
+                                                      Container(
+                                                        margin: const EdgeInsets.only(top: 4),
+                                                        height: 2,
+                                                        width: 40,
+                                                        color: Colors.red,
+                                                      ),
+                                                  ],
+                                                ),
+                                              );
+                                            }),
                                           ),
                                         ),
                                       ],
@@ -885,8 +849,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                             children: [
                               // 价格 + 已售
                               Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
                                     '¥ ${product.price.toStringAsFixed(2)}',
@@ -1086,8 +1049,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
+                                      crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           merchant.name,
@@ -1110,17 +1072,14 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                                           children: [
                                             Container(
                                               height: 20,
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 8,
-                                                  ),
+                                              padding: const EdgeInsets.symmetric(
+                                                horizontal: 8,
+                                              ),
                                               decoration: const BoxDecoration(
                                                 color: Colors.black,
                                                 borderRadius: BorderRadius.only(
                                                   topLeft: Radius.circular(4),
-                                                  bottomLeft: Radius.circular(
-                                                    4,
-                                                  ),
+                                                  bottomLeft: Radius.circular(4),
                                                 ),
                                               ),
                                               alignment: Alignment.center,
@@ -1134,24 +1093,19 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                                             ),
                                             Container(
                                               height: 20,
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 8,
-                                                  ),
+                                              padding: const EdgeInsets.symmetric(
+                                                horizontal: 8,
+                                              ),
                                               decoration: BoxDecoration(
                                                 color: Colors.white,
                                                 border: Border.all(
                                                   color: Colors.black,
                                                   width: 1,
                                                 ),
-                                                borderRadius:
-                                                    const BorderRadius.only(
-                                                      topRight: Radius.circular(
-                                                        4,
-                                                      ),
-                                                      bottomRight:
-                                                          Radius.circular(4),
-                                                    ),
+                                                borderRadius: const BorderRadius.only(
+                                                  topRight: Radius.circular(4),
+                                                  bottomRight: Radius.circular(4),
+                                                ),
                                               ),
                                               alignment: Alignment.center,
                                               child: const Text(
@@ -1174,10 +1128,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                                         Navigator.push(
                                           context,
                                           MaterialPageRoute(
-                                            builder:
-                                                (c) => MerchantPage(
-                                                  mid: merchant.id,
-                                                ),
+                                            builder: (c) => MerchantPage(mid: merchant.id),
                                           ),
                                         );
                                       }
@@ -1206,7 +1157,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                           },
                         ),
 
-                        // 3. “图文详情”分隔条 (带 GlobalKey)
+                        // 3. "图文详情"分隔条 (带 GlobalKey)
                         Container(
                           key: _detailDividerKey,
                           height: 40,
@@ -1230,7 +1181,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                             fit: BoxFit.cover,
                           ),
 
-                        // 5. “推荐商品”分隔条 (带 GlobalKey)
+                        // 5. "推荐商品"分隔条 (带 GlobalKey)
                         Container(
                           key: _recommendDividerKey,
                           height: 40,
@@ -1251,89 +1202,82 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
 
                   // ========= 推荐商品列表 =========
                   SliverToBoxAdapter(
-                    child:
-                        _futureRecommends == null
-                            ? const SizedBox()
-                            : FutureBuilder<List<ProductVO>>(
-                              future: _futureRecommends,
-                              builder: (context, snap) {
-                                if (snap.connectionState !=
-                                    ConnectionState.done) {
-                                  return const Padding(
-                                    padding: EdgeInsets.symmetric(
-                                      vertical: 12.0,
-                                    ),
-                                    child: Center(
-                                      child: CircularProgressIndicator(),
-                                    ),
-                                  );
-                                }
-                                if (snap.hasError) {
-                                  return const Padding(
-                                    padding: EdgeInsets.symmetric(
-                                      vertical: 12.0,
-                                    ),
-                                    child: Center(child: Text('加载失败')),
-                                  );
-                                }
-                                final recommends = snap.data ?? [];
-                                if (recommends.isEmpty) {
-                                  return const Padding(
-                                    padding: EdgeInsets.symmetric(
-                                      vertical: 12.0,
-                                    ),
-                                    child: Center(child: Text('暂无推荐商品')),
-                                  );
-                                }
-                                return Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8.0,
-                                    vertical: 8.0,
+                    child: _futureRecommends == null
+                        ? const SizedBox()
+                        : FutureBuilder<List<ProductVO>>(
+                            future: _futureRecommends,
+                            builder: (context, snap) {
+                              if (snap.connectionState != ConnectionState.done) {
+                                return const Padding(
+                                  padding: EdgeInsets.symmetric(
+                                    vertical: 12.0,
                                   ),
-                                  child: GridView.builder(
-                                    shrinkWrap: true,
-                                    physics:
-                                        const NeverScrollableScrollPhysics(),
-                                    gridDelegate:
-                                        const SliverGridDelegateWithFixedCrossAxisCount(
-                                          crossAxisCount: 2,
-                                          crossAxisSpacing: 8,
-                                          mainAxisSpacing: 8,
-                                          childAspectRatio: 0.65,
-                                        ),
-                                    itemCount: recommends.length,
-                                    itemBuilder: (context, index) {
-                                      final item = recommends[index];
-                                      return ProductCard(
-                                        image: item.image,
-                                        name: item.name,
-                                        activity: item.activity,
-                                        price: item.price,
-                                        payers: item.payers,
-                                        onTap: () {
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder:
-                                                  (c) => ProductDetailPage(
-                                                    product: item,
-                                                  ),
-                                            ),
-                                          );
-                                        },
-                                      );
-                                    },
+                                  child: Center(
+                                    child: CircularProgressIndicator(),
                                   ),
                                 );
-                              },
-                            ),
+                              }
+                              if (snap.hasError) {
+                                return const Padding(
+                                  padding: EdgeInsets.symmetric(
+                                    vertical: 12.0,
+                                  ),
+                                  child: Center(child: Text('加载失败')),
+                                );
+                              }
+                              final recommends = snap.data ?? [];
+                              if (recommends.isEmpty) {
+                                return const Padding(
+                                  padding: EdgeInsets.symmetric(
+                                    vertical: 12.0,
+                                  ),
+                                  child: Center(child: Text('暂无推荐商品')),
+                                );
+                              }
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8.0,
+                                  vertical: 8.0,
+                                ),
+                                child: GridView.builder(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 2,
+                                    crossAxisSpacing: 8,
+                                    mainAxisSpacing: 8,
+                                    childAspectRatio: 0.65,
+                                  ),
+                                  itemCount: recommends.length,
+                                  itemBuilder: (context, index) {
+                                    final item = recommends[index];
+                                    return ProductCard(
+                                      image: item.image,
+                                      name: item.name,
+                                      activity: item.activity,
+                                      price: item.price,
+                                      payers: item.payers,
+                                      onTap: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (c) => ProductDetailPage(product: item),
+                                          ),
+                                        );
+                                      },
+                                    );
+                                  },
+                                ),
+                              );
+                            },
+                          ),
                   ),
                 ],
               );
             },
           ),
 
-          // “回到顶部”按钮：当 _showBackToTop 为 true 时显示
+          // "回到顶部"按钮：当 _showBackToTop 为 true 时显示
           if (_showBackToTop)
             Positioned(
               bottom: 20,
@@ -1354,6 +1298,95 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                       size: 20,
                     ),
                   ],
+                ),
+              ),
+            ),
+          // Search Results Overlay
+          if (_showSearchResults)
+            Positioned(
+              top: kToolbarHeight + MediaQuery.of(context).padding.top + 8, // Add some space below the search bar
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: GestureDetector(
+                onTap: () {
+                  _searchFocusNode.unfocus();
+                  setState(() { _showSearchResults = false; });
+                },
+                child: Container(
+                  color: Colors.black.withOpacity(0.3), // Semi-transparent background
+                  child: Container(
+                    margin: const EdgeInsets.only(top: 8), // Add gap between search bar and results
+                    color: Colors.white,
+                    child: _isSearching
+                        ? const Center(child: CircularProgressIndicator())
+                        : _searchErrorMsg != null
+                            ? Center(child: Text(_searchErrorMsg!))
+                            : _searchResults.isEmpty && _searchController.text.isNotEmpty
+                                ? const Center(child: Text('未找到相关商品'))
+                                : _searchController.text.isEmpty && _searchFocusNode.hasFocus
+                                    ? const Center(child: Text('请输入搜索关键词'))
+                                    : ListView.builder(
+                                        itemCount: _searchResults.length,
+                                        padding: const EdgeInsets.all(8.0),
+                                        itemBuilder: (context, index) {
+                                          final product = _searchResults[index];
+                                          return Container(
+                                            margin: const EdgeInsets.only(bottom: 8.0),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              borderRadius: BorderRadius.circular(8),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.grey.withOpacity(0.1),
+                                                  spreadRadius: 1,
+                                                  blurRadius: 5,
+                                                  offset: const Offset(0, 2),
+                                                ),
+                                              ],
+                                            ),
+                                            child: ListTile(
+                                              leading: ClipRRect(
+                                                borderRadius: BorderRadius.circular(4),
+                                                child: Image.network(
+                                                  product.image,
+                                                  width: 60,
+                                                  height: 60,
+                                                  fit: BoxFit.cover,
+                                                ),
+                                              ),
+                                              title: Text(
+                                                product.name,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 16,
+                                                ),
+                                              ),
+                                              subtitle: Text(
+                                                '¥${product.price.toStringAsFixed(2)}',
+                                                style: const TextStyle(
+                                                  color: Colors.red,
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                              onTap: () {
+                                                _searchFocusNode.unfocus();
+                                                setState(() { _showSearchResults = false; });
+                                                Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (c) => ProductDetailPage(product: product),
+                                                  ),
+                                                );
+                                              },
+                                            ),
+                                          );
+                                        },
+                                      ),
+                  ),
                 ),
               ),
             ),
@@ -1384,15 +1417,14 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        // 底部“店铺”图标 + 文本，与上方“进店”逻辑一致
+                        // 底部"店铺"图标 + 文本，与上方"进店"逻辑一致
                         GestureDetector(
                           onTap: () {
                             if (_merchant != null) {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder:
-                                      (c) => MerchantPage(mid: _merchant!.id),
+                                  builder: (c) => MerchantPage(mid: _merchant!.id),
                                 ),
                               );
                             }
@@ -1406,8 +1438,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                                     _merchant != null
                                         ? NetworkImage(_merchant!.image)
                                         : null,
-                                backgroundColor:
-                                    _merchant == null ? Colors.grey : null,
+                                backgroundColor: _merchant == null ? Colors.grey : null,
                               ),
                               const SizedBox(height: 2),
                               const Text(
@@ -1480,7 +1511,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                     ),
                     child: Row(
                       children: [
-                        // “加入购物车” 包裹时机——弹出底部选择面板
+                        // "加入购物车" 包裹时机——弹出底部选择面板
                         Expanded(
                           child: GestureDetector(
                             onTap: _showSelectionSheet,
@@ -1504,7 +1535,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                             ),
                           ),
                         ),
-                        // “立即购买” 也弹出同一个底部面板
+                        // "立即购买" 也弹出同一个底部面板
                         Expanded(
                           child: GestureDetector(
                             onTap: _showSelectionSheet,

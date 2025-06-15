@@ -56,12 +56,13 @@ class _WriteBlogPageState extends State<WriteBlogPage> {
       );
       return;
     }
+    const _baseUrl = 'http://10.0.2.2:8088';
 
     try {
-      // 上传所有图片到后端接口
+      // 1. 上传所有图片
       List<String> imageUrls = [];
       for (final image in _selectedImages) {
-        final uri = Uri.parse("http://localhost:8088/auth/upload/image");
+        final uri = Uri.parse("$_baseUrl/auth/upload/image");
         final request = http.MultipartRequest("POST", uri);
         request.files.add(await http.MultipartFile.fromPath("file", image.path));
 
@@ -72,11 +73,10 @@ class _WriteBlogPageState extends State<WriteBlogPage> {
         if (json["code"] != 200 || json["data"] == null) {
           throw Exception("图片上传失败: ${json["message"]}");
         }
-
         imageUrls.add(json["data"]);
       }
 
-      // 提交发布内容到后端
+      // 2. 提交博客内容
       await ApiService.postApi("/auth/blog/publish", data: {
         "title": title,
         "content": content,
@@ -89,12 +89,14 @@ class _WriteBlogPageState extends State<WriteBlogPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("发布成功")),
       );
+      Navigator.pop(context); // 发布成功后返回
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("发布失败：$e")),
+        SnackBar(content: Text("发布失败：\$e")),
       );
     }
   }
+
 
   @override
   Widget build(BuildContext context) {

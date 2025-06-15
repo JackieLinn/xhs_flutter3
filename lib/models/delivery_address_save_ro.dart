@@ -13,13 +13,11 @@ class DeliveryAddressSaveRO {
     required this.uid,
   });
 
-  Map<String, dynamic> toJson() {
-    return {
-      'name': name,
-      'sex': sex,
-      'phone': phone,
-      'address': address,
-      'uid': uid,
-    };
-  }
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'sex': sex,
+    'phone': phone,
+    'address': address,
+    'uid': uid,
+  };
 }

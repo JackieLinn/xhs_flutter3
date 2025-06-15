@@ -4,6 +4,8 @@ import 'package:xhs/views/friends_page.dart';
 import 'package:xhs/views/drafts_page.dart';
 import 'package:xhs/views/comments_page.dart';
 import 'package:xhs/views/history_page.dart';
+import 'package:xhs/views/orders_page.dart';
+import 'package:xhs/views/cart_page.dart';
 
 class SideDrawer extends StatelessWidget {
   const SideDrawer({super.key});
@@ -111,7 +113,10 @@ class SideDrawer extends StatelessWidget {
                   title: const Text('订单'),
                   onTap: () {
                     Navigator.pop(context);
-                    // TODO: 跳转订单页面
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const OrdersPage()),
+                    );
                   },
                 ),
                 const Divider(height: 1),
@@ -120,7 +125,10 @@ class SideDrawer extends StatelessWidget {
                   title: const Text('购物车'),
                   onTap: () {
                     Navigator.pop(context);
-                    // TODO: 跳转购物车页面
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const CartPage()),
+                    );
                   },
                 ),
                 const Divider(height: 1),
