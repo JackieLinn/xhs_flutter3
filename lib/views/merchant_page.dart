@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // For SystemChrome
+import 'package:flutter/services.dart';
 
 import '../services/api_service.dart';
-import '../models/product_vo.dart'; // 导入 ProductVO
-import '../components/product_card.dart'; // 导入 ProductCard
-import '../views/product_detail_page.dart'; // 导入 ProductDetailPage
+import '../models/product_vo.dart';
+import '../components/product_card.dart';
+import '../views/product_detail_page.dart';
 
 class MerchantPage extends StatefulWidget {
   final int mid;
