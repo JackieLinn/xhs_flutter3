@@ -51,7 +51,9 @@ class Blog {
 }
 
 class Page1 extends StatefulWidget {
-  const Page1({Key? key}) : super(key: key);
+  final bool shouldRefresh;
+  
+  const Page1({Key? key, this.shouldRefresh = false}) : super(key: key);
 
   @override
   State<Page1> createState() => _Page1State();
@@ -62,6 +64,7 @@ class _Page1State extends State<Page1> with SingleTickerProviderStateMixin {
   final _storage = const FlutterSecureStorage();
   late Future<List<Blog>> _futureBlogs;
   late Future<List<Blog>> _futureFollowingBlogs;
+  static bool _hasRefreshed = false; // 静态变量跟踪是否已刷新
 
   @override
   void initState() {
@@ -69,6 +72,38 @@ class _Page1State extends State<Page1> with SingleTickerProviderStateMixin {
     _tabController = TabController(length: 3, vsync: this, initialIndex: 1);
     _futureBlogs = fetchRandomBlogs(page: 1, size: 10);
     _futureFollowingBlogs = fetchFollowingBlogs();
+  }
+
+  @override
+  void didUpdateWidget(Page1 oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 如果shouldRefresh变为true，则刷新数据
+    if (widget.shouldRefresh && !oldWidget.shouldRefresh) {
+      setState(() {
+        _futureBlogs = fetchRandomBlogs(page: 1, size: 10);
+        _futureFollowingBlogs = fetchFollowingBlogs();
+      });
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 检查是否需要刷新
+    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    if (args != null && args['refresh'] == true && !_hasRefreshed) {
+      _hasRefreshed = true; // 标记已刷新
+      // 刷新数据
+      setState(() {
+        _futureBlogs = fetchRandomBlogs(page: 1, size: 10);
+        _futureFollowingBlogs = fetchFollowingBlogs();
+      });
+      
+      // 延迟重置刷新标记
+      Future.delayed(const Duration(milliseconds: 100), () {
+        _hasRefreshed = false;
+      });
+    }
   }
 
   /// 获取推荐博客

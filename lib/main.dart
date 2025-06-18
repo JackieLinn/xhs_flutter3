@@ -54,6 +54,8 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   late int _selectedIndex;
+  bool _shouldRefresh = false;
+  static bool _hasRefreshed = false; // 静态变量跟踪是否已刷新
 
   final GlobalKey<Page2State> _page2Key =
       GlobalKey<Page2State>(); // 新增 GlobalKey
@@ -67,9 +69,34 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 检查是否需要刷新
+    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    if (args != null && args['refresh'] == true && !_hasRefreshed) {
+      _hasRefreshed = true; // 标记已刷新
+      // 设置刷新标志并切换到首页
+      setState(() {
+        _shouldRefresh = true;
+        _selectedIndex = 0;
+      });
+      
+      // 延迟重置刷新标志
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (mounted) {
+          setState(() {
+            _shouldRefresh = false;
+            _hasRefreshed = false; // 重置刷新标记
+          });
+        }
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final List<Widget> pages = [
-      Page1(),
+      Page1(key: const ValueKey('page1'), shouldRefresh: _shouldRefresh),
       _page2,
       WriteBlogPage(),
       const ShopPage(),
