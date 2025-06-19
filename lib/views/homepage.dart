@@ -18,6 +18,7 @@ class Blog {
   final String authorName;
   final String authorAvatar;
   final List<String> imageUrls;
+  final String videoUrl;
 
   Blog({
     required this.id,
@@ -30,6 +31,7 @@ class Blog {
     required this.authorName,
     required this.authorAvatar,
     required this.imageUrls,
+    required this.videoUrl,
   });
 
   factory Blog.fromJson(Map<String, dynamic> json) {
@@ -46,6 +48,7 @@ class Blog {
       authorName: user?['username'] as String? ?? '匿名',
       authorAvatar: user?['avatar'] as String? ?? '',
       imageUrls: images.map((e) => e['url'] as String).toList(),
+      videoUrl: json['videoUrl'] as String? ?? '',
     );
   }
 }
