@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:xhs/components/side-drawer.dart';
 import 'package:xhs/services/api_service.dart';
+import 'package:xhs/components/tweetcard.dart';
 
 class MyPage extends StatefulWidget {
   const MyPage({super.key});
@@ -258,49 +259,19 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
                       crossAxisCount: 2, // Two columns
                       crossAxisSpacing: 8,
                       mainAxisSpacing: 8,
+                      childAspectRatio: 0.65, // 与 homepage 保持一致
                     ),
                     itemCount: blogs.length,
                     itemBuilder: (context, index) {
-                      return Card(
-                        elevation: 2,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        child: Padding(
-                          padding: const EdgeInsets.all(8),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (blogs[index]['imageUrl'] != '') ...[
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: Center(
-                                    child:Image.network(
-                                    blogs[index]['imageUrl'],
-                                    fit: BoxFit.cover,
-                                    height: 100, // Set image height for better layout control
-                                  ),)
-                                ),
-                                const SizedBox(height: 10),
-                              ],
-                              Text(
-                                blogs[index]['title'],
-                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                              ),
-                              const SizedBox(height: 5),
-                              Text(
-                                blogs[index]['content'],
-                                style: const TextStyle(fontSize: 10, color: Colors.black54),
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  const Icon(Icons.thumb_up, size: 16),
-                                  const SizedBox(width: 5),
-                                  Text(blogs[index]['likes'].toString()),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
+                      return TweetCard(
+                        imageUrl: blogs[index]['imageUrl'] ?? '',
+                        title: blogs[index]['title'] ?? '',
+                        avatarUrl: avatarUrl.isNotEmpty ? avatarUrl : 'https://i.pravatar.cc/150?img=1',
+                        username: username.isNotEmpty ? username : '小红书用户',
+                        likes: blogs[index]['likes'] ?? 0,
+                        onTap: () {
+                          // 可选：跳转到详情页
+                        },
                       );
                     },
                   ),

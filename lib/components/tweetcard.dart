@@ -35,7 +35,7 @@ class TweetCard extends StatelessWidget {
             Expanded(
               flex: 3,
               child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(8)), // 更小的圆角
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
                 child: Image.network(
                   imageUrl,
                   width: double.infinity,
