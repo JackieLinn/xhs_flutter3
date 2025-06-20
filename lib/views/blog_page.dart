@@ -136,6 +136,28 @@ class _BlogPageState extends State<BlogPage> {
     }
   }
 
+  Future<void> toggleFavorite() async {
+    try {
+      final raw = await _storage.read(key: 'access_token');
+      if (raw == null) throw Exception('未登录');
+      final obj = jsonDecode(raw) as Map<String, dynamic>;
+      final uid = obj['id'];
+      if (blog!.favorited == true) {
+        await ApiService.postVoid('/auth/blogs/deleteFavorite/${blog!.id}?uid=$uid');
+        setState(() {
+          blog!.favorited = false;
+        });
+      } else {
+        await ApiService.postVoid('/auth/blogs/addFavorite/${blog!.id}?uid=$uid');
+        setState(() {
+          blog!.favorited = true;
+        });
+      }
+    } catch (e) {
+      debugPrint('收藏操作失败: $e');
+    }
+  }
+
   Future<void> submitComment() async {
     final text = _commentController.text.trim();
     if (text.isEmpty) return;
@@ -189,6 +211,12 @@ class _BlogPageState extends State<BlogPage> {
 
   @override
   void dispose() {
+    Navigator.pop(context, {
+      'blogId': blog?.id,
+      'liked': blog?.liked,
+      'likes': blog?.likes,
+      'favorited': blog?.favorited,
+    });
     _commentController.dispose();
     _pageController.dispose();
     super.dispose();
@@ -207,6 +235,7 @@ class _BlogPageState extends State<BlogPage> {
           'blogId': blog!.id,
           'liked': blog!.liked,
           'likes': blog!.likes,
+          'favorited': blog!.favorited,
         });
         return false; // 阻止默认返回，自己 pop
       },
@@ -346,10 +375,11 @@ class _BlogPageState extends State<BlogPage> {
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.bookmark_border, color: Colors.grey),
-                      onPressed: () {
-                        // TODO: 收藏逻辑
-                      },
+                      icon: Icon(
+                        blog!.favorited == true ? Icons.bookmark : Icons.bookmark_border,
+                        color: blog!.favorited == true ? Colors.orange : Colors.grey,
+                      ),
+                      onPressed: toggleFavorite,
                     ),
                     IconButton(
                       icon: Icon(

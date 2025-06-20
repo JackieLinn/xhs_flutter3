@@ -21,6 +21,7 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
   // Store the user's blogs
   List<Map<String, dynamic>> blogs = [];
   List<Map<String, dynamic>> likedBlogs = [];
+  List<Map<String, dynamic>> favoriteBlogs = [];
 
   // User info variables
   String username = '';
@@ -75,6 +76,7 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
       final response = await ApiService.getApi('/auth/blogs/uid', queryParameters: {'uid': uid, 'currentUid': uid});
       setState(() {
         blogs = (response as List).map((e) => {
+          'id': e['id'],
           'title': e['title'],
           'content': e['content'],
           'createdAt': e['createTime'],
@@ -82,12 +84,14 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
           'imageUrl': (e['images'] != null && e['images'].isNotEmpty)
               ? e['images'][0]['url']
               : '',
+          'liked': e['liked'] is bool ? e['liked'] : e['liked'] == 'true',
         }).toList();
       });
       // 获取点赞过的博客
       final likedResp = await ApiService.getApi('/auth/blogs/like', queryParameters: {'uid': uid});
       setState(() {
         likedBlogs = (likedResp as List).map((e) => {
+          'id': e['id'],
           'title': e['title'],
           'content': e['content'],
           'createdAt': e['createTime'],
@@ -97,6 +101,28 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
               : '',
           'authorAvatar': e['user']?['avatar'] ?? '',
           'authorName': e['user']?['username'] ?? '',
+          'liked': e['liked'] is bool ? e['liked'] : e['liked'] == 'true',
+        }).toList();
+      });
+      // 获取收藏的博客
+      final favoriteResp = await ApiService.getApi('/auth/blogs/favorite', queryParameters: {'uid': uid});
+      print(favoriteResp);
+      setState(() {
+        favoriteBlogs = (favoriteResp as List).map((e) => {
+          'id': e['id'],
+          'title': e['title'],
+          'content': e['content'],
+          'createdAt': e['createTime'],
+          'likes': e['likes'] ?? 0,
+          'imageUrl': (e['images'] != null && e['images'].isNotEmpty)
+              ? e['images'][0]['url']
+              : '',
+          'authorAvatar': (e['user'] != null && e['user']['avatar'] != null && e['user']['avatar'].toString().isNotEmpty)
+              ? e['user']['avatar']
+              : (avatarUrl.isNotEmpty ? avatarUrl : 'https://i.pravatar.cc/150?img=1'),
+          'authorName': e['user']?['username'] ?? '',
+          'liked': e['liked'] is bool ? e['liked'] : e['liked'] == 'true',
+          'favorited': e['favorited'] is bool ? e['favorited'] : e['favorited'] == 'true',
         }).toList();
       });
     } catch (e) {
@@ -310,8 +336,56 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
                       );
                     },
                   ),
-                  // Other Tabs content
-                  const Center(child: Text('这里是收藏内容')),
+                  // 收藏Tab：展示收藏的博客
+                  GridView.builder(
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 8,
+                      mainAxisSpacing: 8,
+                      childAspectRatio: 0.65,
+                    ),
+                    itemCount: favoriteBlogs.length,
+                    itemBuilder: (context, index) {
+                      return TweetCard(
+                        imageUrl: favoriteBlogs[index]['imageUrl'] ?? '',
+                        title: favoriteBlogs[index]['title'] ?? '',
+                        avatarUrl: (favoriteBlogs[index]['authorAvatar'] != null && favoriteBlogs[index]['authorAvatar'].toString().isNotEmpty)
+                            ? favoriteBlogs[index]['authorAvatar']
+                            : (avatarUrl.isNotEmpty ? avatarUrl : 'https://i.pravatar.cc/150?img=1'),
+                        username: (favoriteBlogs[index]['authorName'] != null && favoriteBlogs[index]['authorName'].toString().isNotEmpty)
+                            ? favoriteBlogs[index]['authorName']
+                            : (username.isNotEmpty ? username : '小红书用户'),
+                        likes: favoriteBlogs[index]['likes'] ?? 0,
+                        liked: favoriteBlogs[index]['liked'] ?? false,
+                        onTap: () async {
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => BlogPage(
+                                blogId: favoriteBlogs[index]['id'],
+                                authorName: (favoriteBlogs[index]['authorName'] != null && favoriteBlogs[index]['authorName'].toString().isNotEmpty)
+                                    ? favoriteBlogs[index]['authorName']
+                                    : (username.isNotEmpty ? username : '小红书用户'),
+                                authorAvatar: (favoriteBlogs[index]['authorAvatar'] != null && favoriteBlogs[index]['authorAvatar'].toString().isNotEmpty)
+                                    ? favoriteBlogs[index]['authorAvatar']
+                                    : (avatarUrl.isNotEmpty ? avatarUrl : 'https://i.pravatar.cc/150?img=1'),
+                                imageUrls: favoriteBlogs[index]['imageUrl'] != '' ? [favoriteBlogs[index]['imageUrl']] : [],
+                                title: favoriteBlogs[index]['title'] ?? '',
+                                content: favoriteBlogs[index]['content'] ?? '',
+                              ),
+                            ),
+                          );
+                          if (result != null && result is Map) {
+                            setState(() {
+                              favoriteBlogs[index]['liked'] = result['liked'];
+                              favoriteBlogs[index]['likes'] = result['likes'];
+                              favoriteBlogs[index]['favorited'] = result['favorited'];
+                            });
+                          }
+                        },
+                      );
+                    },
+                  ),
                   // 赞过Tab：展示点赞过的博客
                   GridView.builder(
                     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(

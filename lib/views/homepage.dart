@@ -20,6 +20,7 @@ class Blog {
   final List<String> imageUrls;
   final String videoUrl;
   bool liked;
+  bool favorited;
 
   Blog({
     required this.id,
@@ -34,6 +35,7 @@ class Blog {
     required this.imageUrls,
     required this.videoUrl,
     required this.liked,
+    required this.favorited,
   });
 
   factory Blog.fromJson(Map<String, dynamic> json) {
@@ -52,6 +54,7 @@ class Blog {
       imageUrls: images.map((e) => e['url'] as String).toList(),
       videoUrl: json['videoUrl'] as String? ?? '',
       liked: json['liked'] as bool? ?? false,
+      favorited: json['favorited'] as bool? ?? false,
     );
   }
 }
