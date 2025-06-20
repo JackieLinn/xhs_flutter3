@@ -4,7 +4,6 @@ import 'package:xhs/views/write_blog_page.dart';
 
 import 'views/homepage.dart';
 import 'views/hotpage.dart'; // Page2
-import 'views/page3.dart';
 import 'views/shop.dart';
 import 'views/login.dart';
 

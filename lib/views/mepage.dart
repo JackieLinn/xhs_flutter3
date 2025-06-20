@@ -4,6 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:xhs/components/side-drawer.dart';
 import 'package:xhs/services/api_service.dart';
 import 'package:xhs/components/tweetcard.dart';
+import 'package:xhs/views/blog_page.dart';
 
 class MyPage extends StatefulWidget {
   const MyPage({super.key});
@@ -19,6 +20,7 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
 
   // Store the user's blogs
   List<Map<String, dynamic>> blogs = [];
+  List<Map<String, dynamic>> likedBlogs = [];
 
   // User info variables
   String username = '';
@@ -67,11 +69,10 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
     try {
       final raw = await _storage.read(key: 'access_token');
       if (raw == null) throw Exception('User is not logged in');
-
       final obj = jsonDecode(raw) as Map<String, dynamic>;
-      final uid = obj['id'].toString(); // Get the uid from the token
-
-      final response = await ApiService.getApi('/auth/blogs/uid', queryParameters: {'uid': uid});
+      final uid = obj['id'].toString();
+      // 获取自己的博客
+      final response = await ApiService.getApi('/auth/blogs/uid', queryParameters: {'uid': uid, 'currentUid': uid});
       setState(() {
         blogs = (response as List).map((e) => {
           'title': e['title'],
@@ -81,6 +82,21 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
           'imageUrl': (e['images'] != null && e['images'].isNotEmpty)
               ? e['images'][0]['url']
               : '',
+        }).toList();
+      });
+      // 获取点赞过的博客
+      final likedResp = await ApiService.getApi('/auth/blogs/like', queryParameters: {'uid': uid});
+      setState(() {
+        likedBlogs = (likedResp as List).map((e) => {
+          'title': e['title'],
+          'content': e['content'],
+          'createdAt': e['createTime'],
+          'likes': e['likes'] ?? 0,
+          'imageUrl': (e['images'] != null && e['images'].isNotEmpty)
+              ? e['images'][0]['url']
+              : '',
+          'authorAvatar': e['user']?['avatar'] ?? '',
+          'authorName': e['user']?['username'] ?? '',
         }).toList();
       });
     } catch (e) {
@@ -269,15 +285,74 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
                         avatarUrl: avatarUrl.isNotEmpty ? avatarUrl : 'https://i.pravatar.cc/150?img=1',
                         username: username.isNotEmpty ? username : '小红书用户',
                         likes: blogs[index]['likes'] ?? 0,
-                        onTap: () {
-                          // 可选：跳转到详情页
+                        liked: false,
+                        onTap: () async {
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => BlogPage(
+                                blogId: blogs[index]['id'],
+                                authorName: username.isNotEmpty ? username : '小红书用户',
+                                authorAvatar: avatarUrl.isNotEmpty ? avatarUrl : 'https://i.pravatar.cc/150?img=1',
+                                imageUrls: blogs[index]['imageUrl'] != '' ? [blogs[index]['imageUrl']] : [],
+                                title: blogs[index]['title'] ?? '',
+                                content: blogs[index]['content'] ?? '',
+                              ),
+                            ),
+                          );
+                          if (result != null && result is Map) {
+                            setState(() {
+                              blogs[index]['liked'] = result['liked'];
+                              blogs[index]['likes'] = result['likes'];
+                            });
+                          }
                         },
                       );
                     },
                   ),
                   // Other Tabs content
                   const Center(child: Text('这里是收藏内容')),
-                  const Center(child: Text('这里是赞过内容')),
+                  // 赞过Tab：展示点赞过的博客
+                  GridView.builder(
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 8,
+                      mainAxisSpacing: 8,
+                      childAspectRatio: 0.65,
+                    ),
+                    itemCount: likedBlogs.length,
+                    itemBuilder: (context, index) {
+                      return TweetCard(
+                        imageUrl: likedBlogs[index]['imageUrl'] ?? '',
+                        title: likedBlogs[index]['title'] ?? '',
+                        avatarUrl: likedBlogs[index]['authorAvatar'] ?? 'https://i.pravatar.cc/150?img=1',
+                        username: likedBlogs[index]['authorName'] ?? '小红书用户',
+                        likes: likedBlogs[index]['likes'] ?? 0,
+                        liked: true,
+                        onTap: () async {
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => BlogPage(
+                                blogId: likedBlogs[index]['id'],
+                                authorName: likedBlogs[index]['authorName'] ?? '小红书用户',
+                                authorAvatar: likedBlogs[index]['authorAvatar'] ?? 'https://i.pravatar.cc/150?img=1',
+                                imageUrls: likedBlogs[index]['imageUrl'] != '' ? [likedBlogs[index]['imageUrl']] : [],
+                                title: likedBlogs[index]['title'] ?? '',
+                                content: likedBlogs[index]['content'] ?? '',
+                              ),
+                            ),
+                          );
+                          if (result != null && result is Map) {
+                            setState(() {
+                              likedBlogs[index]['liked'] = result['liked'];
+                              likedBlogs[index]['likes'] = result['likes'];
+                            });
+                          }
+                        },
+                      );
+                    },
+                  ),
                 ],
               ),
             ),

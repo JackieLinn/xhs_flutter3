@@ -12,13 +12,14 @@ class Blog {
   final int uid;
   final String title;
   final String content;
-  final int likes;
+  int likes;
   final bool draft;
   final bool isVideo;
   final String authorName;
   final String authorAvatar;
   final List<String> imageUrls;
   final String videoUrl;
+  bool liked;
 
   Blog({
     required this.id,
@@ -32,6 +33,7 @@ class Blog {
     required this.authorAvatar,
     required this.imageUrls,
     required this.videoUrl,
+    required this.liked,
   });
 
   factory Blog.fromJson(Map<String, dynamic> json) {
@@ -49,6 +51,7 @@ class Blog {
       authorAvatar: user?['avatar'] as String? ?? '',
       imageUrls: images.map((e) => e['url'] as String).toList(),
       videoUrl: json['videoUrl'] as String? ?? '',
+      liked: json['liked'] as bool? ?? false,
     );
   }
 }
@@ -73,36 +76,33 @@ class _Page1State extends State<Page1> with SingleTickerProviderStateMixin {
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this, initialIndex: 1);
-    _futureBlogs = fetchRandomBlogs(page: 1, size: 10);
-    _futureFollowingBlogs = fetchFollowingBlogs();
+    _initFutures();
+  }
+
+  Future<void> _initFutures() async {
+    final auth = await ApiService.getAuthObject();
+    final uid = auth['id'].toString();
+    setState(() {
+      _futureBlogs = fetchRandomBlogs(page: 1, size: 10, uid: uid);
+      _futureFollowingBlogs = fetchFollowingBlogs(uid: uid);
+    });
   }
 
   @override
   void didUpdateWidget(Page1 oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // 如果shouldRefresh变为true，则刷新数据
     if (widget.shouldRefresh && !oldWidget.shouldRefresh) {
-      setState(() {
-        _futureBlogs = fetchRandomBlogs(page: 1, size: 10);
-        _futureFollowingBlogs = fetchFollowingBlogs();
-      });
+      _initFutures();
     }
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // 检查是否需要刷新
     final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     if (args != null && args['refresh'] == true && !_hasRefreshed) {
-      _hasRefreshed = true; // 标记已刷新
-      // 刷新数据
-      setState(() {
-        _futureBlogs = fetchRandomBlogs(page: 1, size: 10);
-        _futureFollowingBlogs = fetchFollowingBlogs();
-      });
-      
-      // 延迟重置刷新标记
+      _hasRefreshed = true;
+      _initFutures();
       Future.delayed(const Duration(milliseconds: 100), () {
         _hasRefreshed = false;
       });
@@ -110,29 +110,23 @@ class _Page1State extends State<Page1> with SingleTickerProviderStateMixin {
   }
 
   /// 获取推荐博客
-  Future<List<Blog>> fetchRandomBlogs({required int page, required int size}) async {
+  Future<List<Blog>> fetchRandomBlogs({required int page, required int size, required String uid}) async {
     final data = await ApiService.getApi(
       '/auth/blogs/random',
-      queryParameters: {'page': page.toString(), 'size': size.toString()},
+      queryParameters: {'page': page.toString(), 'size': size.toString(), 'uid': uid},
     );
     return (data as List).map((e) => Blog.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   /// 获取已关注用户的博客
-  Future<List<Blog>> fetchFollowingBlogs() async {
-    try {
-      final auth = await ApiService.getAuthObject(); // 获取本地 uid
-      final uid = auth['id'].toString();
-
-      final data = await ApiService.getApi(
-        '/auth/blogs/following',
-        queryParameters: {'uid': uid}, // 如果你的后端已改为从token中解析，这行可以删
-      );
-      return (data as List).map((e) => Blog.fromJson(e as Map<String, dynamic>)).toList();
-    } catch (e) {
-      debugPrint('获取关注博客失败: $e');
-      rethrow;
-    }
+  Future<List<Blog>> fetchFollowingBlogs({required String uid}) async {
+    final auth = await ApiService.getAuthObject();
+    final currentUid = auth['id'].toString();
+    final data = await ApiService.getApi(
+      '/auth/blogs/following',
+      queryParameters: {'uid': uid, 'currentUid': currentUid},
+    );
+    return (data as List).map((e) => Blog.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   /// 重用的 blog 列表 UI 构建器
@@ -154,8 +148,9 @@ class _Page1State extends State<Page1> with SingleTickerProviderStateMixin {
           avatarUrl: blog.authorAvatar,
           username: blog.authorName,
           likes: blog.likes,
-          onTap: () {
-            Navigator.push(
+          liked: blog.liked,
+          onTap: () async {
+            final result = await Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (_) => BlogPage(
@@ -168,6 +163,15 @@ class _Page1State extends State<Page1> with SingleTickerProviderStateMixin {
                 ),
               ),
             );
+            if (result != null && result is Map) {
+              // 重新拉取数据
+              final auth = await ApiService.getAuthObject();
+              final uid = auth['id'].toString();
+              setState(() {
+                _futureBlogs = fetchRandomBlogs(page: 1, size: 10, uid: uid);
+                _futureFollowingBlogs = fetchFollowingBlogs(uid: uid);
+              });
+            }
           },
         );
       },

@@ -9,12 +9,13 @@ class Blog {
   final int uid;
   final String title;
   final String content;
-  final int likes;
+  int likes;
   final bool draft;
   final bool isVideo;
   final String authorName;
   final String authorAvatar;
   final List<String> imageUrls;
+  bool liked;
 
   Blog({
     required this.id,
@@ -27,6 +28,7 @@ class Blog {
     required this.authorName,
     required this.authorAvatar,
     required this.imageUrls,
+    this.liked = false,
   });
 
   factory Blog.fromJson(Map<String, dynamic> json) {
@@ -120,8 +122,9 @@ class _HistoryPageState extends State<HistoryPage> {
                 avatarUrl: blog.authorAvatar,
                 username: blog.authorName,
                 likes: blog.likes,
-                onTap: () {
-                  Navigator.push(
+                liked: blog.liked,
+                onTap: () async {
+                  final result = await Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (_) => BlogPage(
@@ -134,6 +137,12 @@ class _HistoryPageState extends State<HistoryPage> {
                       ),
                     ),
                   );
+                  if (result != null && result is Map) {
+                    setState(() {
+                      blog.liked = result['liked'];
+                      blog.likes = result['likes'];
+                    });
+                  }
                 },
               );
             },
