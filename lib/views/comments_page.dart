@@ -64,7 +64,7 @@ class _CommentsPageState extends State<CommentsPage> {
     final uid = auth['id'].toString();
     final data = await ApiService.getApi(
       '/auth/comments/uid',
-      queryParameters: {'uid': uid},
+      queryParameters: {'uid': uid, 'currentUid': uid},
     );
     return (data as List)
         .map((e) => Comment.fromJson(e as Map<String, dynamic>))

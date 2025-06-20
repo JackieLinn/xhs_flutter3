@@ -211,12 +211,6 @@ class _BlogPageState extends State<BlogPage> {
 
   @override
   void dispose() {
-    Navigator.pop(context, {
-      'blogId': blog?.id,
-      'liked': blog?.liked,
-      'likes': blog?.likes,
-      'favorited': blog?.favorited,
-    });
     _commentController.dispose();
     _pageController.dispose();
     super.dispose();
@@ -237,7 +231,7 @@ class _BlogPageState extends State<BlogPage> {
           'likes': blog!.likes,
           'favorited': blog!.favorited,
         });
-        return false; // 阻止默认返回，自己 pop
+        return false;
       },
       child: Scaffold(
         backgroundColor: Colors.white,

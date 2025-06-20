@@ -313,7 +313,7 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
                         likes: blogs[index]['likes'] ?? 0,
                         liked: false,
                         onTap: () async {
-                          final result = await Navigator.push(
+                          await Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (_) => BlogPage(
@@ -326,12 +326,7 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
                               ),
                             ),
                           );
-                          if (result != null && result is Map) {
-                            setState(() {
-                              blogs[index]['liked'] = result['liked'];
-                              blogs[index]['likes'] = result['likes'];
-                            });
-                          }
+                          await fetchBlogs();
                         },
                       );
                     },
@@ -358,7 +353,7 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
                         likes: favoriteBlogs[index]['likes'] ?? 0,
                         liked: favoriteBlogs[index]['liked'] ?? false,
                         onTap: () async {
-                          final result = await Navigator.push(
+                          await Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (_) => BlogPage(
@@ -375,13 +370,7 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
                               ),
                             ),
                           );
-                          if (result != null && result is Map) {
-                            setState(() {
-                              favoriteBlogs[index]['liked'] = result['liked'];
-                              favoriteBlogs[index]['likes'] = result['likes'];
-                              favoriteBlogs[index]['favorited'] = result['favorited'];
-                            });
-                          }
+                          await fetchBlogs();
                         },
                       );
                     },
@@ -404,7 +393,7 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
                         likes: likedBlogs[index]['likes'] ?? 0,
                         liked: true,
                         onTap: () async {
-                          final result = await Navigator.push(
+                          await Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (_) => BlogPage(
@@ -417,12 +406,7 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
                               ),
                             ),
                           );
-                          if (result != null && result is Map) {
-                            setState(() {
-                              likedBlogs[index]['liked'] = result['liked'];
-                              likedBlogs[index]['likes'] = result['likes'];
-                            });
-                          }
+                          await fetchBlogs();
                         },
                       );
                     },
