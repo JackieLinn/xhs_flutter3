@@ -69,18 +69,24 @@ class _BlogPageState extends State<BlogPage> {
 
   Future<void> fetchComments() async {
     try {
+      final raw = await _storage.read(key: 'access_token');
+      if (raw == null) return;
+      final obj = jsonDecode(raw) as Map<String, dynamic>;
+      final uid = obj['id'];
       final response = await ApiService.getApi(
         '/auth/comments/bid',
-        queryParameters: {'blog_id': widget.blogId.toString()},
+        queryParameters: {'blog_id': widget.blogId.toString(), 'uid': uid.toString()},
       );
       setState(() {
         comments = (response as List)
             .map((e) => {
+          'id': e['id'],
           'avatar': e['user']?['avatar']?.toString() ?? 'https://i.pravatar.cc/40',
           'name': e['user']?['username']?.toString() ?? '匿名用户',
           'text': e['content']?.toString() ?? '',
           'createTime': e['createTime']?.toString() ?? '',
           'likes': e['likes'] ?? 0,
+          'liked': e['liked'] ?? false,
         })
             .toList();
       });
@@ -158,6 +164,26 @@ class _BlogPageState extends State<BlogPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('评论提交失败：$e')),
       );
+    }
+  }
+
+  Future<void> _toggleCommentLike(Map<String, dynamic> comment) async {
+    final raw = await _storage.read(key: 'access_token');
+    if (raw == null) return;
+    final obj = jsonDecode(raw) as Map<String, dynamic>;
+    final uid = obj['id'];
+    if (comment['liked'] == true) {
+      await ApiService.postVoid('/auth/comments/deleteLike/${comment['id']}?uid=$uid');
+      setState(() {
+        comment['liked'] = false;
+        comment['likes'] = (comment['likes'] ?? 1) - 1;
+      });
+    } else {
+      await ApiService.postVoid('/auth/comments/addLike/${comment['id']}?uid=$uid');
+      setState(() {
+        comment['liked'] = true;
+        comment['likes'] = (comment['likes'] ?? 0) + 1;
+      });
     }
   }
 
@@ -279,8 +305,12 @@ class _BlogPageState extends State<BlogPage> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.favorite, color: Colors.red, size: 20),
-                          onPressed: () {}, // 评论点赞逻辑可后续实现
+                          icon: Icon(
+                            c['liked'] == true ? Icons.favorite : Icons.favorite_border,
+                            color: c['liked'] == true ? Colors.red : Colors.grey,
+                            size: 20,
+                          ),
+                          onPressed: () => _toggleCommentLike(c),
                         ),
                         Text('${c['likes']}', style: const TextStyle(color: Colors.grey, fontSize: 12)),
                       ],
