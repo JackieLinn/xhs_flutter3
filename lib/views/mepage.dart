@@ -119,7 +119,7 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin, Wi
               ? e['images'][0]['url']
               : '',
           'liked': e['liked'] is bool ? e['liked'] : e['liked'] == 'true',
-          'isVideo': e['is_video'] ?? false,
+          'isVideo': e['isVideo'] ?? false,
         }).where((blog) => !(blog['isVideo'] ?? false)).toList();
       });
       // 获取点赞过的博客
@@ -137,7 +137,7 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin, Wi
           'authorAvatar': e['user']?['avatar'] ?? '',
           'authorName': e['user']?['username'] ?? '',
           'liked': e['liked'] is bool ? e['liked'] : e['liked'] == 'true',
-          'isVideo': e['is_video'] ?? false,
+          'isVideo': e['isVideo'] ?? false,
         }).where((blog) => !(blog['isVideo'] ?? false)).toList();
       });
       // 获取收藏的博客
@@ -159,7 +159,7 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin, Wi
           'authorName': e['user']?['username'] ?? '',
           'liked': e['liked'] is bool ? e['liked'] : e['liked'] == 'true',
           'favorited': e['favorited'] is bool ? e['favorited'] : e['favorited'] == 'true',
-          'isVideo': e['is_video'] ?? false,
+          'isVideo': e['isVideo'] ?? false,
         }).where((blog) => !(blog['isVideo'] ?? false)).toList();
       });
     } catch (e) {

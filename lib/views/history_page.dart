@@ -48,7 +48,7 @@ class Blog {
       content: json['content'] as String? ?? '',
       likes: json['likes'] as int? ?? 0,
       draft: json['draft'] as bool? ?? false,
-      isVideo: json['is_video'] as bool? ?? false,
+      isVideo: json['isVideo'] as bool? ?? false,
       authorName: user['username'] as String? ?? '匿名',
       authorAvatar: user['avatar'] as String? ?? '',
       imageUrls: images,

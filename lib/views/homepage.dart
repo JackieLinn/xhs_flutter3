@@ -50,7 +50,7 @@ class Blog {
       content: json['content'] as String? ?? '',
       likes: json['likes'] as int? ?? 0,
       draft: json['draft'] as bool? ?? false,
-      isVideo: json['is_video'] as bool? ?? false,
+      isVideo: json['isVideo'] as bool? ?? false,
       authorName: user?['username'] as String? ?? '匿名',
       authorAvatar: user?['avatar'] as String? ?? '',
       imageUrls: images.map((e) => e['url'] as String).toList(),
@@ -139,11 +139,6 @@ class _Page1State extends State<Page1> with SingleTickerProviderStateMixin {
   Widget buildBlogGrid(List<Blog> blogs) {
     // 过滤掉视频博客
     final filteredBlogs = blogs.where((blog) => !blog.isVideo).toList();
-    
-    // 调试信息
-    print('Total blogs: ${blogs.length}');
-    print('Video blogs: ${blogs.where((blog) => blog.isVideo).length}');
-    print('Filtered blogs: ${filteredBlogs.length}');
     
     return GridView.builder(
       padding: const EdgeInsets.all(8),
