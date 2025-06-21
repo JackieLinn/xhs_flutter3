@@ -16,6 +16,8 @@ class Blog {
   final String authorAvatar;
   final List<String> imageUrls;
   bool liked;
+  bool favorited;
+  bool followed;
 
   Blog({
     required this.id,
@@ -29,6 +31,8 @@ class Blog {
     required this.authorAvatar,
     required this.imageUrls,
     this.liked = false,
+    this.favorited = false,
+    this.followed = false,
   });
 
   factory Blog.fromJson(Map<String, dynamic> json) {
@@ -48,6 +52,9 @@ class Blog {
       authorName: user['username'] as String? ?? '匿名',
       authorAvatar: user['avatar'] as String? ?? '',
       imageUrls: images,
+      liked: json['liked'] as bool? ?? false,
+      favorited: json['favorited'] as bool? ?? false,
+      followed: json['followed'] as bool? ?? false,
     );
   }
 }

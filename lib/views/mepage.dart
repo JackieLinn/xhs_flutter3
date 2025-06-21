@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:xhs/components/side-drawer.dart';
@@ -13,10 +14,11 @@ class MyPage extends StatefulWidget {
   State<MyPage> createState() => _MyPageState();
 }
 
-class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
+class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late TabController _tabController;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
+  Timer? _refreshTimer;
 
   // Store the user's blogs
   List<Map<String, dynamic>> blogs = [];
@@ -36,8 +38,40 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    WidgetsBinding.instance.addObserver(this);
     fetchUserInfo(); // Fetch user info when the page is initialized
     fetchBlogs(); // Fetch blogs when the page is initialized
+    
+    // 设置定时器，每30秒刷新一次用户信息
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      if (mounted) {
+        fetchUserInfo();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      // 当应用恢复时刷新数据
+      fetchUserInfo();
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 移除自动刷新，避免过度刷新
+    // 用户可以通过下拉刷新或其他方式手动刷新
   }
 
   // Fetch the user information from the API
@@ -129,12 +163,6 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
       debugPrint('Failed to fetch blogs: $e');
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to fetch blogs')));
     }
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
   }
 
   @override
@@ -292,126 +320,132 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin {
           Expanded(
             child: Container(
               color: const Color(0xFFEEEEEE),
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  // Notes Tab - Updated for 2-column layout
-                  GridView.builder(
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2, // Two columns
-                      crossAxisSpacing: 8,
-                      mainAxisSpacing: 8,
-                      childAspectRatio: 0.65, // 与 homepage 保持一致
-                    ),
-                    itemCount: blogs.length,
-                    itemBuilder: (context, index) {
-                      return TweetCard(
-                        imageUrl: blogs[index]['imageUrl'] ?? '',
-                        title: blogs[index]['title'] ?? '',
-                        avatarUrl: avatarUrl.isNotEmpty ? avatarUrl : 'https://i.pravatar.cc/150?img=1',
-                        username: username.isNotEmpty ? username : '小红书用户',
-                        likes: blogs[index]['likes'] ?? 0,
-                        liked: false,
-                        onTap: () async {
-                          await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => BlogPage(
-                                blogId: blogs[index]['id'],
-                                authorName: username.isNotEmpty ? username : '小红书用户',
-                                authorAvatar: avatarUrl.isNotEmpty ? avatarUrl : 'https://i.pravatar.cc/150?img=1',
-                                imageUrls: blogs[index]['imageUrl'] != '' ? [blogs[index]['imageUrl']] : [],
-                                title: blogs[index]['title'] ?? '',
-                                content: blogs[index]['content'] ?? '',
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  await fetchUserInfo();
+                  await fetchBlogs();
+                },
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    // Notes Tab - Updated for 2-column layout
+                    GridView.builder(
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2, // Two columns
+                        crossAxisSpacing: 8,
+                        mainAxisSpacing: 8,
+                        childAspectRatio: 0.65, // 与 homepage 保持一致
+                      ),
+                      itemCount: blogs.length,
+                      itemBuilder: (context, index) {
+                        return TweetCard(
+                          imageUrl: blogs[index]['imageUrl'] ?? '',
+                          title: blogs[index]['title'] ?? '',
+                          avatarUrl: avatarUrl.isNotEmpty ? avatarUrl : 'https://i.pravatar.cc/150?img=1',
+                          username: username.isNotEmpty ? username : '小红书用户',
+                          likes: blogs[index]['likes'] ?? 0,
+                          liked: false,
+                          onTap: () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => BlogPage(
+                                  blogId: blogs[index]['id'],
+                                  authorName: username.isNotEmpty ? username : '小红书用户',
+                                  authorAvatar: avatarUrl.isNotEmpty ? avatarUrl : 'https://i.pravatar.cc/150?img=1',
+                                  imageUrls: blogs[index]['imageUrl'] != '' ? [blogs[index]['imageUrl']] : [],
+                                  title: blogs[index]['title'] ?? '',
+                                  content: blogs[index]['content'] ?? '',
+                                ),
                               ),
-                            ),
-                          );
-                          await fetchBlogs();
-                        },
-                      );
-                    },
-                  ),
-                  // 收藏Tab：展示收藏的博客
-                  GridView.builder(
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 8,
-                      mainAxisSpacing: 8,
-                      childAspectRatio: 0.65,
+                            );
+                            await fetchBlogs();
+                          },
+                        );
+                      },
                     ),
-                    itemCount: favoriteBlogs.length,
-                    itemBuilder: (context, index) {
-                      return TweetCard(
-                        imageUrl: favoriteBlogs[index]['imageUrl'] ?? '',
-                        title: favoriteBlogs[index]['title'] ?? '',
-                        avatarUrl: (favoriteBlogs[index]['authorAvatar'] != null && favoriteBlogs[index]['authorAvatar'].toString().isNotEmpty)
-                            ? favoriteBlogs[index]['authorAvatar']
-                            : (avatarUrl.isNotEmpty ? avatarUrl : 'https://i.pravatar.cc/150?img=1'),
-                        username: (favoriteBlogs[index]['authorName'] != null && favoriteBlogs[index]['authorName'].toString().isNotEmpty)
-                            ? favoriteBlogs[index]['authorName']
-                            : (username.isNotEmpty ? username : '小红书用户'),
-                        likes: favoriteBlogs[index]['likes'] ?? 0,
-                        liked: favoriteBlogs[index]['liked'] ?? false,
-                        onTap: () async {
-                          await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => BlogPage(
-                                blogId: favoriteBlogs[index]['id'],
-                                authorName: (favoriteBlogs[index]['authorName'] != null && favoriteBlogs[index]['authorName'].toString().isNotEmpty)
-                                    ? favoriteBlogs[index]['authorName']
-                                    : (username.isNotEmpty ? username : '小红书用户'),
-                                authorAvatar: (favoriteBlogs[index]['authorAvatar'] != null && favoriteBlogs[index]['authorAvatar'].toString().isNotEmpty)
-                                    ? favoriteBlogs[index]['authorAvatar']
-                                    : (avatarUrl.isNotEmpty ? avatarUrl : 'https://i.pravatar.cc/150?img=1'),
-                                imageUrls: favoriteBlogs[index]['imageUrl'] != '' ? [favoriteBlogs[index]['imageUrl']] : [],
-                                title: favoriteBlogs[index]['title'] ?? '',
-                                content: favoriteBlogs[index]['content'] ?? '',
+                    // 收藏Tab：展示收藏的博客
+                    GridView.builder(
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 8,
+                        mainAxisSpacing: 8,
+                        childAspectRatio: 0.65,
+                      ),
+                      itemCount: favoriteBlogs.length,
+                      itemBuilder: (context, index) {
+                        return TweetCard(
+                          imageUrl: favoriteBlogs[index]['imageUrl'] ?? '',
+                          title: favoriteBlogs[index]['title'] ?? '',
+                          avatarUrl: (favoriteBlogs[index]['authorAvatar'] != null && favoriteBlogs[index]['authorAvatar'].toString().isNotEmpty)
+                              ? favoriteBlogs[index]['authorAvatar']
+                              : (avatarUrl.isNotEmpty ? avatarUrl : 'https://i.pravatar.cc/150?img=1'),
+                          username: (favoriteBlogs[index]['authorName'] != null && favoriteBlogs[index]['authorName'].toString().isNotEmpty)
+                              ? favoriteBlogs[index]['authorName']
+                              : (username.isNotEmpty ? username : '小红书用户'),
+                          likes: favoriteBlogs[index]['likes'] ?? 0,
+                          liked: favoriteBlogs[index]['liked'] ?? false,
+                          onTap: () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => BlogPage(
+                                  blogId: favoriteBlogs[index]['id'],
+                                  authorName: (favoriteBlogs[index]['authorName'] != null && favoriteBlogs[index]['authorName'].toString().isNotEmpty)
+                                      ? favoriteBlogs[index]['authorName']
+                                      : (username.isNotEmpty ? username : '小红书用户'),
+                                  authorAvatar: (favoriteBlogs[index]['authorAvatar'] != null && favoriteBlogs[index]['authorAvatar'].toString().isNotEmpty)
+                                      ? favoriteBlogs[index]['authorAvatar']
+                                      : (avatarUrl.isNotEmpty ? avatarUrl : 'https://i.pravatar.cc/150?img=1'),
+                                  imageUrls: favoriteBlogs[index]['imageUrl'] != '' ? [favoriteBlogs[index]['imageUrl']] : [],
+                                  title: favoriteBlogs[index]['title'] ?? '',
+                                  content: favoriteBlogs[index]['content'] ?? '',
+                                ),
                               ),
-                            ),
-                          );
-                          await fetchBlogs();
-                        },
-                      );
-                    },
-                  ),
-                  // 赞过Tab：展示点赞过的博客
-                  GridView.builder(
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 8,
-                      mainAxisSpacing: 8,
-                      childAspectRatio: 0.65,
+                            );
+                            await fetchBlogs();
+                          },
+                        );
+                      },
                     ),
-                    itemCount: likedBlogs.length,
-                    itemBuilder: (context, index) {
-                      return TweetCard(
-                        imageUrl: likedBlogs[index]['imageUrl'] ?? '',
-                        title: likedBlogs[index]['title'] ?? '',
-                        avatarUrl: likedBlogs[index]['authorAvatar'] ?? 'https://i.pravatar.cc/150?img=1',
-                        username: likedBlogs[index]['authorName'] ?? '小红书用户',
-                        likes: likedBlogs[index]['likes'] ?? 0,
-                        liked: true,
-                        onTap: () async {
-                          await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => BlogPage(
-                                blogId: likedBlogs[index]['id'],
-                                authorName: likedBlogs[index]['authorName'] ?? '小红书用户',
-                                authorAvatar: likedBlogs[index]['authorAvatar'] ?? 'https://i.pravatar.cc/150?img=1',
-                                imageUrls: likedBlogs[index]['imageUrl'] != '' ? [likedBlogs[index]['imageUrl']] : [],
-                                title: likedBlogs[index]['title'] ?? '',
-                                content: likedBlogs[index]['content'] ?? '',
+                    // 赞过Tab：展示点赞过的博客
+                    GridView.builder(
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 8,
+                        mainAxisSpacing: 8,
+                        childAspectRatio: 0.65,
+                      ),
+                      itemCount: likedBlogs.length,
+                      itemBuilder: (context, index) {
+                        return TweetCard(
+                          imageUrl: likedBlogs[index]['imageUrl'] ?? '',
+                          title: likedBlogs[index]['title'] ?? '',
+                          avatarUrl: likedBlogs[index]['authorAvatar'] ?? 'https://i.pravatar.cc/150?img=1',
+                          username: likedBlogs[index]['authorName'] ?? '小红书用户',
+                          likes: likedBlogs[index]['likes'] ?? 0,
+                          liked: true,
+                          onTap: () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => BlogPage(
+                                  blogId: likedBlogs[index]['id'],
+                                  authorName: likedBlogs[index]['authorName'] ?? '小红书用户',
+                                  authorAvatar: likedBlogs[index]['authorAvatar'] ?? 'https://i.pravatar.cc/150?img=1',
+                                  imageUrls: likedBlogs[index]['imageUrl'] != '' ? [likedBlogs[index]['imageUrl']] : [],
+                                  title: likedBlogs[index]['title'] ?? '',
+                                  content: likedBlogs[index]['content'] ?? '',
+                                ),
                               ),
-                            ),
-                          );
-                          await fetchBlogs();
-                        },
-                      );
-                    },
-                  ),
-                ],
+                            );
+                            await fetchBlogs();
+                          },
+                        );
+                      },
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

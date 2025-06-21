@@ -21,6 +21,7 @@ class Blog {
   final String videoUrl;
   bool liked;
   bool favorited;
+  bool followed;
 
   Blog({
     required this.id,
@@ -36,6 +37,7 @@ class Blog {
     required this.videoUrl,
     required this.liked,
     required this.favorited,
+    required this.followed,
   });
 
   factory Blog.fromJson(Map<String, dynamic> json) {
@@ -55,6 +57,7 @@ class Blog {
       videoUrl: json['videoUrl'] as String? ?? '',
       liked: json['liked'] as bool? ?? false,
       favorited: json['favorited'] as bool? ?? false,
+      followed: json['followed'] as bool? ?? false,
     );
   }
 }

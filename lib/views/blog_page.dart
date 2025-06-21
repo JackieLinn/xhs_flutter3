@@ -209,6 +209,55 @@ class _BlogPageState extends State<BlogPage> {
     }
   }
 
+  Future<void> _toggleFollow() async {
+    try {
+      final auth = await ApiService.getAuthObject();
+      final currentUid = auth['id'].toString();
+      final targetUid = blog!.uid.toString();
+      
+      if (blog!.followed) {
+        // 取消关注
+        await ApiService.unfollowUser(currentUid, targetUid);
+        setState(() {
+          blog!.followed = false;
+        });
+      } else {
+        // 关注
+        await ApiService.followUser(currentUid, targetUid);
+        setState(() {
+          blog!.followed = true;
+        });
+      }
+      
+      // 通知mepage刷新用户信息
+      _notifyUserInfoUpdate();
+    } catch (e) {
+      debugPrint('关注操作失败: $e');
+      if (mounted) {
+        String errorMessage = '操作失败';
+        if (e.toString().contains('已经关注过了')) {
+          errorMessage = '已经关注过了';
+          setState(() {
+            blog!.followed = true;
+          });
+        } else if (e.toString().contains('取消关注成功')) {
+          errorMessage = '取消关注成功';
+          setState(() {
+            blog!.followed = false;
+          });
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMessage)),
+        );
+      }
+    }
+  }
+
+  void _notifyUserInfoUpdate() {
+    // 简单的刷新通知，当用户返回mepage时会自动刷新
+    // 这里不需要复杂的实现，因为mepage会在页面重新获得焦点时刷新
+  }
+
   @override
   void dispose() {
     _commentController.dispose();
@@ -230,6 +279,7 @@ class _BlogPageState extends State<BlogPage> {
           'liked': blog!.liked,
           'likes': blog!.likes,
           'favorited': blog!.favorited,
+          'followed': blog!.followed,
         });
         return false;
       },
@@ -248,7 +298,15 @@ class _BlogPageState extends State<BlogPage> {
             ],
           ),
           actions: [
-            TextButton(onPressed: () {}, child: const Text('关注', style: TextStyle(color: Colors.red))),
+            TextButton(
+              onPressed: _toggleFollow,
+              child: Text(
+                blog!.followed ? '已关注' : '关注',
+                style: TextStyle(
+                  color: blog!.followed ? Colors.grey : Colors.red,
+                ),
+              ),
+            ),
             IconButton(icon: const Icon(Icons.share, color: Colors.black54), onPressed: () {}),
           ],
         ),

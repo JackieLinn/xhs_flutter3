@@ -112,8 +112,9 @@ class ApiService {
   static Future<void> postVoid(
     String path, {
     Map<String, dynamic>? data,
+    Map<String, String>? queryParameters,
   }) async {
-    final uri = Uri.parse('$_baseUrl$path');
+    final uri = Uri.parse('$_baseUrl$path').replace(queryParameters: queryParameters);
     final headers =
         path.startsWith('/auth/')
             ? {'Content-Type': 'application/json'}
@@ -181,13 +182,29 @@ class ApiService {
   static Future<bool> isFollowing(String followerId, String followedId) async {
     try {
       final data = await getApi(
-        '/auth/follow/check',
-        queryParameters: {'followerId': followerId, 'followedId': followedId},
+        '/api/follower/check',
+        queryParameters: {'follower': followerId, 'uid': followedId},
       );
       return data as bool;
     } catch (e) {
       return false;
     }
+  }
+
+  /// 关注用户
+  static Future<void> followUser(String followerId, String followedId) async {
+    await postVoid('/api/follower/add', data: {
+      'follower': int.parse(followerId),
+      'uid': int.parse(followedId),
+    });
+  }
+
+  /// 取消关注用户
+  static Future<void> unfollowUser(String followerId, String followedId) async {
+    await postVoid(
+      '/api/follower/remove',
+      queryParameters: {'follower': followerId, 'uid': followedId},
+    );
   }
 
   /// 获取搜索历史
