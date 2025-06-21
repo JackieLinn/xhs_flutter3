@@ -119,7 +119,8 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin, Wi
               ? e['images'][0]['url']
               : '',
           'liked': e['liked'] is bool ? e['liked'] : e['liked'] == 'true',
-        }).toList();
+          'isVideo': e['is_video'] ?? false,
+        }).where((blog) => !(blog['isVideo'] ?? false)).toList();
       });
       // 获取点赞过的博客
       final likedResp = await ApiService.getApi('/auth/blogs/like', queryParameters: {'uid': uid});
@@ -136,7 +137,8 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin, Wi
           'authorAvatar': e['user']?['avatar'] ?? '',
           'authorName': e['user']?['username'] ?? '',
           'liked': e['liked'] is bool ? e['liked'] : e['liked'] == 'true',
-        }).toList();
+          'isVideo': e['is_video'] ?? false,
+        }).where((blog) => !(blog['isVideo'] ?? false)).toList();
       });
       // 获取收藏的博客
       final favoriteResp = await ApiService.getApi('/auth/blogs/favorite', queryParameters: {'uid': uid});
@@ -157,7 +159,8 @@ class _MyPageState extends State<MyPage> with SingleTickerProviderStateMixin, Wi
           'authorName': e['user']?['username'] ?? '',
           'liked': e['liked'] is bool ? e['liked'] : e['liked'] == 'true',
           'favorited': e['favorited'] is bool ? e['favorited'] : e['favorited'] == 'true',
-        }).toList();
+          'isVideo': e['is_video'] ?? false,
+        }).where((blog) => !(blog['isVideo'] ?? false)).toList();
       });
     } catch (e) {
       debugPrint('Failed to fetch blogs: $e');

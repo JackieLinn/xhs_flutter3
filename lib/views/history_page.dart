@@ -112,6 +112,13 @@ class _HistoryPageState extends State<HistoryPage> {
             return const Center(child: Text('暂无浏览记录'));
           }
 
+          // 过滤掉视频博客
+          final filteredBlogs = blogs.where((blog) => !blog.isVideo).toList();
+          
+          if (filteredBlogs.isEmpty) {
+            return const Center(child: Text('暂无浏览记录'));
+          }
+
           return GridView.builder(
             padding: const EdgeInsets.all(8),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -120,9 +127,9 @@ class _HistoryPageState extends State<HistoryPage> {
               mainAxisSpacing: 8,
               childAspectRatio: 0.65,
             ),
-            itemCount: blogs.length,
+            itemCount: filteredBlogs.length,
             itemBuilder: (context, index) {
-              final blog = blogs[index];
+              final blog = filteredBlogs[index];
               return TweetCard(
                 imageUrl: blog.imageUrls.isNotEmpty ? blog.imageUrls.first : '',
                 title: blog.title,

@@ -265,9 +265,10 @@ class _SearchPageState extends State<SearchPage> {
                     mainAxisSpacing: 8,
                     childAspectRatio: 0.65,
                   ),
-                  itemCount: _searchResults.length,
+                  itemCount: _searchResults.where((blog) => !blog.isVideo).length,
                   itemBuilder: (context, index) {
-                    final blog = _searchResults[index];
+                    final filteredBlogs = _searchResults.where((blog) => !blog.isVideo).toList();
+                    final blog = filteredBlogs[index];
                     return TweetCard(
                       imageUrl: blog.imageUrls.isNotEmpty ? blog.imageUrls.first : '',
                       title: blog.title,

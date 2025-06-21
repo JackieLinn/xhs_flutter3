@@ -137,6 +137,14 @@ class _Page1State extends State<Page1> with SingleTickerProviderStateMixin {
 
   /// 重用的 blog 列表 UI 构建器
   Widget buildBlogGrid(List<Blog> blogs) {
+    // 过滤掉视频博客
+    final filteredBlogs = blogs.where((blog) => !blog.isVideo).toList();
+    
+    // 调试信息
+    print('Total blogs: ${blogs.length}');
+    print('Video blogs: ${blogs.where((blog) => blog.isVideo).length}');
+    print('Filtered blogs: ${filteredBlogs.length}');
+    
     return GridView.builder(
       padding: const EdgeInsets.all(8),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -145,9 +153,9 @@ class _Page1State extends State<Page1> with SingleTickerProviderStateMixin {
         mainAxisSpacing: 8,
         childAspectRatio: 0.65,
       ),
-      itemCount: blogs.length,
+      itemCount: filteredBlogs.length,
       itemBuilder: (context, index) {
-        final blog = blogs[index];
+        final blog = filteredBlogs[index];
         return TweetCard(
           imageUrl: blog.imageUrls.isNotEmpty ? blog.imageUrls.first : '',
           title: blog.title,
