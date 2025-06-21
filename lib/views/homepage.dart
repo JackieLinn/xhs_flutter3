@@ -125,11 +125,11 @@ class _Page1State extends State<Page1> with SingleTickerProviderStateMixin {
   Future<List<Blog>> fetchFollowingBlogs({required String uid}) async {
     final auth = await ApiService.getAuthObject();
     final currentUid = auth['id'].toString();
-    final data = await ApiService.getApi(
-      '/auth/blogs/following',
+      final data = await ApiService.getApi(
+        '/auth/blogs/following',
       queryParameters: {'uid': uid, 'currentUid': currentUid},
-    );
-    return (data as List).map((e) => Blog.fromJson(e as Map<String, dynamic>)).toList();
+      );
+      return (data as List).map((e) => Blog.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   /// 重用的 blog 列表 UI 构建器

@@ -167,4 +167,41 @@ class ApiService {
     if (raw == null) throw Exception('尚未登录');
     return jsonDecode(raw) as Map<String, dynamic>;
   }
+
+  /// 搜索博客
+  static Future<List<dynamic>> searchBlogs(String keyword, String uid) async {
+    final data = await getApi(
+      '/auth/search/keyword',
+      queryParameters: {'keyword': keyword, 'uid': uid},
+    );
+    return data as List<dynamic>;
+  }
+
+  /// 检查是否已关注
+  static Future<bool> isFollowing(String followerId, String followedId) async {
+    try {
+      final data = await getApi(
+        '/auth/follow/check',
+        queryParameters: {'followerId': followerId, 'followedId': followedId},
+      );
+      return data as bool;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// 获取搜索历史
+  static Future<List<Map<String, dynamic>>> getSearchHistory(String uid, {int limit = 10}) async {
+    final data = await getApi(
+      '/auth/search/history/$uid',
+      queryParameters: {'limit': limit.toString()},
+    );
+    return (data as List).map((e) => e as Map<String, dynamic>).toList();
+  }
+
+  /// 获取热门搜索关键词
+  static Future<List<Map<String, dynamic>>> getPopularKeywords(String uid) async {
+    final data = await getApi('/auth/search/popular/$uid');
+    return (data as List).map((e) => e as Map<String, dynamic>).toList();
+  }
 }
