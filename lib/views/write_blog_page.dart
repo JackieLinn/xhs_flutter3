@@ -70,17 +70,21 @@ class _WriteBlogPageState extends State<WriteBlogPage> {
         final responseBody = await streamedResponse.stream.bytesToString();
         final json = jsonDecode(responseBody);
 
-        if (json["code"] != 200 || json["data"] == null) {
-          throw Exception("图片上传失败: ${json["message"]}");
-        }
         imageUrls.add(json["data"]);
+        print("上传图片成功，URL: ${json["data"]}");
       }
+      
+      print("所有图片URL列表: $imageUrls");
 
-      // 2. 提交博客内容
-      await ApiService.postApi("/auth/blog/publish", data: {
+      // 2. 获取用户ID
+      final authObj = await ApiService.getAuthObject();
+      final uid = int.parse(authObj['id'].toString());
+
+      // 3. 提交博客内容
+      await ApiService.postApi("/auth/blogs/publish", data: {
+        "uid": uid,
         "title": title,
         "content": content,
-        "visibility": _visibility,
         "draft": false,
         "isVideo": false,
         "imageUrls": imageUrls,
@@ -89,10 +93,17 @@ class _WriteBlogPageState extends State<WriteBlogPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("发布成功")),
       );
-      Navigator.pop(context); // 发布成功后返回
+      
+      // 跳转到主页面并刷新
+      Navigator.pushNamedAndRemoveUntil(
+        context, 
+        '/home', 
+        (route) => false,
+        arguments: {'refresh': true},
+      );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("发布失败：\$e")),
+        SnackBar(content: Text("发布失败：$e")),
       );
     }
   }

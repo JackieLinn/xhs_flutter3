@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:xhs/views/friends_page.dart';
-import 'package:xhs/views/drafts_page.dart';
 import 'package:xhs/views/comments_page.dart';
 import 'package:xhs/views/history_page.dart';
 import 'package:xhs/views/orders_page.dart';
@@ -64,11 +63,6 @@ class SideDrawer extends StatelessWidget {
                   leading: const Icon(Icons.drafts),
                   title: const Text('我的草稿'),
                   onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const DraftsPage()),
-                    );
                   },
                 ),
                 const Divider(height: 1),

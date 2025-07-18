@@ -112,8 +112,9 @@ class ApiService {
   static Future<void> postVoid(
     String path, {
     Map<String, dynamic>? data,
+    Map<String, String>? queryParameters,
   }) async {
-    final uri = Uri.parse('$_baseUrl$path');
+    final uri = Uri.parse('$_baseUrl$path').replace(queryParameters: queryParameters);
     final headers =
         path.startsWith('/auth/')
             ? {'Content-Type': 'application/json'}
@@ -166,5 +167,58 @@ class ApiService {
     final raw = await _storage.read(key: _authKey);
     if (raw == null) throw Exception('尚未登录');
     return jsonDecode(raw) as Map<String, dynamic>;
+  }
+
+  /// 搜索博客
+  static Future<List<dynamic>> searchBlogs(String keyword, String uid) async {
+    final data = await getApi(
+      '/auth/search/keyword',
+      queryParameters: {'keyword': keyword, 'uid': uid},
+    );
+    return data as List<dynamic>;
+  }
+
+  /// 检查是否已关注
+  static Future<bool> isFollowing(String followerId, String followedId) async {
+    try {
+      final data = await getApi(
+        '/api/follower/check',
+        queryParameters: {'follower': followerId, 'uid': followedId},
+      );
+      return data as bool;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// 关注用户
+  static Future<void> followUser(String followerId, String followedId) async {
+    await postVoid('/api/follower/add', data: {
+      'follower': int.parse(followerId),
+      'uid': int.parse(followedId),
+    });
+  }
+
+  /// 取消关注用户
+  static Future<void> unfollowUser(String followerId, String followedId) async {
+    await postVoid(
+      '/api/follower/remove',
+      queryParameters: {'follower': followerId, 'uid': followedId},
+    );
+  }
+
+  /// 获取搜索历史
+  static Future<List<Map<String, dynamic>>> getSearchHistory(String uid, {int limit = 10}) async {
+    final data = await getApi(
+      '/auth/search/history/$uid',
+      queryParameters: {'limit': limit.toString()},
+    );
+    return (data as List).map((e) => e as Map<String, dynamic>).toList();
+  }
+
+  /// 获取热门搜索关键词
+  static Future<List<Map<String, dynamic>>> getPopularKeywords(String uid) async {
+    final data = await getApi('/auth/search/popular/$uid');
+    return (data as List).map((e) => e as Map<String, dynamic>).toList();
   }
 }

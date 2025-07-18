@@ -9,12 +9,15 @@ class Blog {
   final int uid;
   final String title;
   final String content;
-  final int likes;
+  int likes;
   final bool draft;
   final bool isVideo;
   final String authorName;
   final String authorAvatar;
   final List<String> imageUrls;
+  bool liked;
+  bool favorited;
+  bool followed;
 
   Blog({
     required this.id,
@@ -27,6 +30,9 @@ class Blog {
     required this.authorName,
     required this.authorAvatar,
     required this.imageUrls,
+    this.liked = false,
+    this.favorited = false,
+    this.followed = false,
   });
 
   factory Blog.fromJson(Map<String, dynamic> json) {
@@ -42,10 +48,13 @@ class Blog {
       content: json['content'] as String? ?? '',
       likes: json['likes'] as int? ?? 0,
       draft: json['draft'] as bool? ?? false,
-      isVideo: json['is_video'] as bool? ?? false,
+      isVideo: json['isVideo'] as bool? ?? false,
       authorName: user['username'] as String? ?? '匿名',
       authorAvatar: user['avatar'] as String? ?? '',
       imageUrls: images,
+      liked: json['liked'] as bool? ?? false,
+      favorited: json['favorited'] as bool? ?? false,
+      followed: json['followed'] as bool? ?? false,
     );
   }
 }
@@ -103,6 +112,13 @@ class _HistoryPageState extends State<HistoryPage> {
             return const Center(child: Text('暂无浏览记录'));
           }
 
+          // 过滤掉视频博客
+          final filteredBlogs = blogs.where((blog) => !blog.isVideo).toList();
+          
+          if (filteredBlogs.isEmpty) {
+            return const Center(child: Text('暂无浏览记录'));
+          }
+
           return GridView.builder(
             padding: const EdgeInsets.all(8),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -111,17 +127,18 @@ class _HistoryPageState extends State<HistoryPage> {
               mainAxisSpacing: 8,
               childAspectRatio: 0.65,
             ),
-            itemCount: blogs.length,
+            itemCount: filteredBlogs.length,
             itemBuilder: (context, index) {
-              final blog = blogs[index];
+              final blog = filteredBlogs[index];
               return TweetCard(
                 imageUrl: blog.imageUrls.isNotEmpty ? blog.imageUrls.first : '',
                 title: blog.title,
                 avatarUrl: blog.authorAvatar,
                 username: blog.authorName,
                 likes: blog.likes,
-                onTap: () {
-                  Navigator.push(
+                liked: blog.liked,
+                onTap: () async {
+                  final result = await Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (_) => BlogPage(
@@ -134,6 +151,12 @@ class _HistoryPageState extends State<HistoryPage> {
                       ),
                     ),
                   );
+                  if (result != null && result is Map) {
+                    setState(() {
+                      blog.liked = result['liked'];
+                      blog.likes = result['likes'];
+                    });
+                  }
                 },
               );
             },

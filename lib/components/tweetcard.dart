@@ -6,6 +6,7 @@ class TweetCard extends StatelessWidget {
   final String avatarUrl;
   final String username;
   final int likes;
+  final bool liked;
   final VoidCallback? onTap;
 
   const TweetCard({
@@ -15,6 +16,7 @@ class TweetCard extends StatelessWidget {
     required this.avatarUrl,
     required this.username,
     required this.likes,
+    required this.liked,
     this.onTap,
   });
 
@@ -35,7 +37,7 @@ class TweetCard extends StatelessWidget {
             Expanded(
               flex: 3,
               child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(8)), // 更小的圆角
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
                 child: Image.network(
                   imageUrl,
                   width: double.infinity,
@@ -72,7 +74,11 @@ class TweetCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        const Icon(Icons.favorite, size: 14, color: Colors.red),
+                        Icon(
+                          liked ? Icons.favorite : Icons.favorite_border,
+                          size: 14,
+                          color: liked ? Colors.red : Colors.grey,
+                        ),
                         const SizedBox(width: 2),
                         Text(likes.toString(), style: const TextStyle(fontSize: 12)),
                       ],
